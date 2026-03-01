@@ -3,20 +3,16 @@ from typing import Literal, Optional
 from datetime import datetime
 
 
-class Task(BaseModel):
+class TaskResponse(BaseModel):
     task_id: str
     title: str
     description: str
     client_id: str
     freelancer_id: Optional[str] = None
-    auction_status: str = "pending"
-    auction_start_time: datetime
-    auction_end_time: datetime
-    payment_id: str
-
+    payment_id: Optional[str] = None
 
 class TaskListResponse(BaseModel):
-    tasks: list[Task]
+    tasks: list[TaskResponse]
 
 
 class TaskCreate(BaseModel):
@@ -24,9 +20,6 @@ class TaskCreate(BaseModel):
     description: str
     client_id: str
     freelancer_id: Optional[str] = None
-    auction_status: Optional[str] = "pending"
-    auction_start_time: datetime
-    auction_end_time: datetime
     payment_id: str
 
 
@@ -34,16 +27,9 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     freelancer_id: Optional[str] = None
-    auction_status: Optional[Literal["pending", "in-progress", "end"]] = None
-    auction_start_time: Optional[datetime] = None
-    auction_end_time: Optional[datetime] = None
     payment_id: Optional[str] = None
 
 
-class TaskResponse(BaseModel):
-    task_id: Optional[str] = None
-    title: Optional[str] = None
-    auction_start_time: Optional[datetime] = None
-    auction_end_time: Optional[datetime] = None
+
 
 
