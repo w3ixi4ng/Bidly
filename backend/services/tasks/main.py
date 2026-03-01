@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from schema import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
-from supabase_client import SupabaseService
+from backend.services.tasks.supabase_service import SupabaseService
 import uvicorn
 
 app = FastAPI()
