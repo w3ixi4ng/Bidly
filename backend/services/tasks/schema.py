@@ -4,15 +4,15 @@ from datetime import datetime
 
 
 class Task(BaseModel):
-    task_id: Optional[str] = None
+    task_id: str
     title: str
     description: str
     client_id: str
     freelancer_id: Optional[str] = None
     auction_status: str = "pending"
-    auction_start_time: Optional[datetime] = None
-    auction_end_time: Optional[datetime] = None
-    payment_id: Optional[str] = None
+    auction_start_time: datetime
+    auction_end_time: datetime
+    payment_id: str
 
 
 class TaskListResponse(BaseModel):
@@ -24,10 +24,10 @@ class TaskCreate(BaseModel):
     description: str
     client_id: str
     freelancer_id: Optional[str] = None
-    auction_status: str = "pending"
-    auction_start_time: Optional[datetime] = None
-    auction_end_time: Optional[datetime] = None
-    payment_id: Optional[str] = None
+    auction_status: Optional[str] = "pending"
+    auction_start_time: datetime
+    auction_end_time: datetime
+    payment_id: str
 
 
 class TaskUpdate(BaseModel):
