@@ -1,3 +1,5 @@
 firebase-admin
 pydantic
 python-dotenv
+fastapi
+uvicorn
