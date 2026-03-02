@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from backend.services.users.schema import UserSignup, UserLogin, UserResponse, UserUpdate
@@ -111,3 +112,5 @@ async def get_all_users():
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8004)
+=======
+>>>>>>> parent of 6ec0949 (base for users)
