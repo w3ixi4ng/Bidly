@@ -112,9 +112,13 @@ async def get_all_users():
 
 if __name__ == "__main__":
 <<<<<<< HEAD
+<<<<<<< HEAD
     uvicorn.run("main:app", host="0.0.0.0", port=8004)
 =======
 >>>>>>> parent of 6ec0949 (base for users)
+=======
+    uvicorn.run("main:app", host="0.0.0.0", port=8001)
+>>>>>>> parent of c7f4d64 (redis setup with Upstash (serverless and persistent))
 =======
     uvicorn.run("main:app", host="0.0.0.0", port=8001)
 >>>>>>> parent of c7f4d64 (redis setup with Upstash (serverless and persistent))
