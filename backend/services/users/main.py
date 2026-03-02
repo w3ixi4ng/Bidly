@@ -36,11 +36,14 @@ async def signup(user_data: UserSignup):
             name=user_data.name
         )
         
-        if not user or not session:
+        if not user:
             raise HTTPException(status_code=400, detail="Failed to create user")
-        
+
+        if not session:
+            return {"message": "Confirmation email sent. Please verify your email to continue."}
+
         profile = supabase_auth.get_user_profile(user.id)
-        
+
         return {
             "user": UserResponse(**profile) if profile else None,
             "access_token": session.access_token,
@@ -74,8 +77,8 @@ async def login(credentials: UserLogin):
         }
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Login failed: {str(e)}")
 
 
 @app.get("/users", response_model=list[UserResponse])
@@ -94,7 +97,7 @@ async def get_user_profile(user_id: str):
 
 @app.put("/users/{user_id}", response_model=UserResponse)
 async def update_user_profile(user_id: str, user_update: UserUpdate, current_user=Depends(get_current_user)):
-    if user_id != current_user.id:
+    if user_id != current_user.user.id:
         raise HTTPException(status_code=403, detail="Forbidden: You can only update your own profile")
 
     update_data = user_update.model_dump(exclude_unset=True)

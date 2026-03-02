@@ -5,8 +5,6 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 class SupabaseAuthService:
-
-    
     def __init__(self):
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
@@ -45,18 +43,17 @@ class SupabaseAuthService:
     
     
     def get_user_profile(self, user_id: str):
-        
         response = self.client.schema("users").from_("users").select("*").eq("user_id", user_id).execute()
         if not response.data:
             return None
         return response.data[0]
     
-    def update_user_profile(self, user_id: str, profile_data: dict):
 
+    def update_user_profile(self, user_id: str, profile_data: dict):
         response = self.client.schema("users").from_("users").update(profile_data).eq("user_id", user_id).execute()
         return response.data
     
+    
     def get_all_users(self):
-        
         response = self.client.schema("users").from_("users").select("*").execute()
         return response.data

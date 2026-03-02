@@ -12,8 +12,6 @@ class UserResponse(BaseModel):
     user_id: str
     name: Optional[str] = None
     email: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
