@@ -70,8 +70,8 @@ async function consumeBidUpdates(channel) {
 
 async function consumeTaskCreated(channel) {
   await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
-  const q = await channel.assertQueue('Task_Created', { durable: true });
-  await channel.bindQueue(q.queue, EXCHANGE_NAME, 'task.created');
+  const q = await channel.assertQueue('Task_Created_WebSocket', { durable: true });
+  await channel.bindQueue(q.queue, EXCHANGE_NAME, 'task.created.websocket');
   channel.prefetch(10);
 
   channel.consume(q.queue, (msg) => {
