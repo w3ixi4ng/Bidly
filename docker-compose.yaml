@@ -1,4 +1,4 @@
-volumes:
+# volumes:
 
 networks:
   bidly-net:
@@ -25,3 +25,13 @@ services:
       - bidly-net
     env_file:
       - .env
+
+  chat-logs:
+    build: ./backend/services/chat-logs
+    container_name: chat-logs
+    ports:
+      - "8002:8002"
+    networks:
+      - bidly-net
+    env_file:
+      - .env.firebase
