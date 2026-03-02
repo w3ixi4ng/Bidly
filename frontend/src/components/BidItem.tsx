@@ -9,14 +9,14 @@ export default function BidItem({ bid, rank }: { bid: Bid; rank: number }) {
     <div
       className={`flex items-center justify-between px-4 py-3.5 rounded-xl transition-colors ${
         isTop
-          ? 'border border-indigo-500/30'
+          ? 'border border-amber-500/30'
           : 'border border-zinc-800/60 hover:border-zinc-700/60'
       }`}
-      style={isTop ? { background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04))' } : { background: 'rgba(24,24,27,0.5)' }}
+      style={isTop ? { background: 'linear-gradient(135deg, rgba(245,158,11,0.09), rgba(251,191,36,0.04))' } : { background: 'rgba(24,24,27,0.5)' }}
     >
       <div className="flex items-center gap-3">
         <span className={`w-8 text-center text-[11px] font-bold tracking-wider ${
-          isTop ? 'text-indigo-400' : 'text-zinc-600'
+          isTop ? 'text-amber-400' : 'text-zinc-600'
         }`}>
           {RANK_LABELS[rank] ?? `#${rank + 1}`}
         </span>

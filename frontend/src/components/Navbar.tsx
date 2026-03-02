@@ -48,8 +48,8 @@ export default function Navbar() {
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
               >
                 <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-indigo-300"
-                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3))' }}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-amber-300"
+                  style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.35), rgba(251,191,36,0.2))' }}
                 >
                   {initials}
                 </div>
@@ -71,8 +71,8 @@ export default function Navbar() {
               </Link>
               <Link
                 to="/signup"
-                className="text-sm px-4 py-2 rounded-lg font-semibold text-white transition-all"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', boxShadow: '0 0 16px rgba(99,102,241,0.3)' }}
+                className="text-sm px-4 py-2 rounded-lg font-semibold transition-all"
+                style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 0 20px rgba(245,158,11,0.35)', color: '#09090b' }}
               >
                 Sign up
               </Link>

@@ -32,7 +32,7 @@ export default function TaskCard({ task }: { task: Task }) {
     >
       {/* Top accent bar */}
       <div className="h-[2px] w-full"
-        style={{ background: 'linear-gradient(90deg, #6366f1, #8b5cf6, transparent)' }} />
+        style={{ background: 'linear-gradient(90deg, #f59e0b, #fbbf24, transparent)' }} />
 
       <div className="flex flex-col flex-1 p-5">
 
@@ -75,7 +75,7 @@ export default function TaskCard({ task }: { task: Task }) {
               month: 'short', day: 'numeric',
             })}
           </span>
-          <span className="text-xs font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">
+          <span className="text-xs font-semibold text-amber-400 group-hover:text-amber-300 transition-colors">
             View &amp; bid →
           </span>
         </div>

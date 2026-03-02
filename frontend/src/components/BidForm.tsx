@@ -61,13 +61,14 @@ export default function BidForm({ task_id, currentBid }: Props) {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={minBid > 0 ? `Min ${minBid.toFixed(2)}` : '0.00'}
-            className="w-full pl-7 pr-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full pl-7 pr-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-amber-500/60 transition-colors"
           />
         </div>
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
+          className="px-5 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold rounded-lg transition-all"
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#09090b' }}
         >
           {mutation.isPending ? 'Placing…' : 'Place Bid'}
         </button>

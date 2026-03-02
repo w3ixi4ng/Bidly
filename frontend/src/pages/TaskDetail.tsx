@@ -65,7 +65,7 @@ export default function TaskDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#09090b' }}>
-        <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
       </div>
     )
   }
@@ -75,7 +75,7 @@ export default function TaskDetail() {
       <div className="min-h-screen flex items-center justify-center text-center" style={{ background: '#09090b' }}>
         <div>
           <p className="text-zinc-300 font-medium">Task not found</p>
-          <Link to="/" className="text-indigo-400 text-sm mt-2 inline-block hover:text-indigo-300">← Back to home</Link>
+          <Link to="/" className="text-amber-400 text-sm mt-2 inline-block hover:text-amber-300">← Back to home</Link>
         </div>
       </div>
     )
@@ -87,7 +87,7 @@ export default function TaskDetail() {
       {/* Subtle hero band */}
       <div className="relative pt-24 pb-10 px-4 overflow-hidden">
         <div className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(99,102,241,0.1), transparent)' }} />
+          style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(245,158,11,0.09), transparent)' }} />
         <div className="relative max-w-4xl mx-auto">
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-5 transition-colors">
             ← Back to tasks
@@ -162,7 +162,7 @@ export default function TaskDetail() {
 
             {/* Current highest bid */}
             <div className="rounded-2xl border border-zinc-800/60 p-5 text-center"
-              style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.03))' }}>
+              style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.07), rgba(251,191,36,0.03))' }}>
               <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Highest bid</p>
               <p className="text-4xl font-black text-white tabular mb-1">
                 {currentBid?.bid_amount != null ? `$${currentBid.bid_amount.toFixed(2)}` : '—'}
@@ -179,7 +179,7 @@ export default function TaskDetail() {
                 <div className="grid grid-cols-4 gap-2">
                   {segments.map((seg) => (
                     <div key={seg.label} className="text-center">
-                      <div className="rounded-lg py-2 mb-1" style={{ background: 'rgba(99,102,241,0.08)' }}>
+                      <div className="rounded-lg py-2 mb-1" style={{ background: 'rgba(245,158,11,0.08)' }}>
                         <span className="text-xl font-bold text-white tabular">{seg.value}</span>
                       </div>
                       <span className="text-[10px] text-zinc-600 uppercase tracking-wide">{seg.label}</span>

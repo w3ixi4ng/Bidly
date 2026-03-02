@@ -54,10 +54,10 @@ export default function Home() {
       <section className="relative flex flex-col items-center text-center pt-36 pb-28 px-4 overflow-hidden hero-grid">
 
         {/* Orbs */}
-        <div ref={orb1Ref} className="pointer-events-none absolute top-[-100px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)' }} />
-        <div ref={orb2Ref} className="pointer-events-none absolute top-[80px] left-1/2 -translate-x-[30%] w-[400px] h-[400px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+        <div ref={orb1Ref} className="pointer-events-none absolute top-[-120px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.14) 0%, rgba(234,179,8,0.06) 50%, transparent 70%)' }} />
+        <div ref={orb2Ref} className="pointer-events-none absolute top-[60px] left-1/2 -translate-x-[35%] w-[500px] h-[500px] rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.08) 0%, transparent 65%)' }} />
 
         {/* Vignette bottom fade */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-40"
@@ -66,12 +66,12 @@ export default function Home() {
         <div className="relative z-10 max-w-4xl mx-auto">
 
           {/* Live badge */}
-          <div ref={badgeRef} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-500/25 bg-indigo-500/8 mb-7">
+          <div ref={badgeRef} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-amber-500/25 mb-7" style={{ background: 'rgba(245,158,11,0.07)' }}>
             <span className="relative flex h-2 w-2">
               <span className="ping-slow absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
-            <span className="text-xs font-medium text-indigo-300 tracking-wide">{tasks.length} live auctions right now</span>
+            <span className="text-xs font-medium text-amber-300/90 tracking-wide">{tasks.length} live auctions right now</span>
           </div>
 
           {/* Headline */}
@@ -105,8 +105,8 @@ export default function Home() {
           {/* CTAs */}
           <div ref={ctaRef} className="flex items-center justify-center gap-3 flex-wrap">
             <Link to="/signup"
-              className="px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', boxShadow: '0 0 24px rgba(99,102,241,0.35)' }}
+              className="px-6 py-3 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 0 28px rgba(245,158,11,0.4)', color: '#09090b' }}
             >
               Start for free →
             </Link>
@@ -141,7 +141,7 @@ export default function Home() {
               placeholder="Search tasks…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors border border-zinc-800 bg-zinc-900/60"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/60 transition-colors border border-zinc-800 bg-zinc-900/60"
             />
           </div>
         </div>
@@ -169,8 +169,8 @@ export default function Home() {
             <p className="text-zinc-300 font-medium text-lg">No live tasks yet</p>
             <p className="text-zinc-500 text-sm mt-1 mb-6">Be the first to post one.</p>
             <Link to="/tasks/create"
-              className="inline-flex px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              className="inline-flex px-5 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#09090b' }}
             >
               Post a task
             </Link>
