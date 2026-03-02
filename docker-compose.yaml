@@ -35,3 +35,11 @@ services:
       - bidly-net
     env_file:
       - .env.firebase
+
+  connect-chat:
+    build: ./backend/orchestrators/connect-chat
+    container_name: connect-chat
+    ports:
+      - "8003:8003"
+    networks:
+      - bidly-net
