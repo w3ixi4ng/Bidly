@@ -16,6 +16,10 @@ class SupabaseService:
         return response.data
 
 
+    def get_task(self, task_id: str):
+        response = self.client.schema("tasks").from_("tasks").select("*").eq("task_id", task_id).execute()
+        return response.data
+
     def create_task(self, task_data: dict):
         response = self.client.schema("tasks").from_("tasks").insert(task_data).execute()
         return response.data
