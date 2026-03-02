@@ -1,5 +1,3 @@
-volumes:
-
 networks:
   bidly-net:
     driver: bridge
@@ -14,7 +12,7 @@ services:
     networks:
       - bidly-net
     env_file:
-      - .env
+      - .env.supabase
 
   chats:
     build: ./backend/services/chats
@@ -24,4 +22,4 @@ services:
     networks:
       - bidly-net
     env_file:
-      - .env
+      - .env.supabase
