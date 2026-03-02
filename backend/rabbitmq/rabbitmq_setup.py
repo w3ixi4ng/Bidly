@@ -8,8 +8,6 @@ import pika
 
 amqp_host = "rabbitmq"
 amqp_port = 5672
-amqp_user = "guest"
-amqp_password = "guest"
 exchange_name = "bidly"
 exchange_type = "topic"
 

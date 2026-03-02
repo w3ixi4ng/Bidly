@@ -70,12 +70,18 @@ services:
       - "15672:15672"  # management UI
     networks:
       - bidly-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq-setup:
     build: ./backend/rabbitmq
     container_name: rabbitmq-setup
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
       - bidly-net
 
@@ -94,7 +100,7 @@ services:
     volumes:
       - ./backend/kong/kong.yaml:/etc/kong/kong.yaml:ro
     ports:
-      - "80:8000"     # proxy (all client traffic goes here)
+      - "8000:8000"     # proxy (all client traffic goes here)
       - "8001:8001"   # admin API
       - "8443:8443"   # proxy SSL (if needed)
     networks:

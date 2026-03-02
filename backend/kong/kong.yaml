@@ -8,6 +8,7 @@ services:
       - name: tasks-route
         paths:
           - /tasks
+        strip_path: false
 
   - name: chats-service
     url: http://chats:8006
@@ -15,6 +16,7 @@ services:
       - name: chats-route
         paths:
           - /chats
+        strip_path: false
 
   - name: chat-logs-service
     url: http://chat-logs:8002
@@ -22,6 +24,7 @@ services:
       - name: chat-logs-route
         paths:
           - /chat-logs
+        strip_path: false
 
   - name: bids-service
     url: http://bids:8003
@@ -29,6 +32,7 @@ services:
       - name: bids-route
         paths:
           - /bids
+        strip_path: false
 
   - name: users-service
     url: http://users:8004
@@ -36,3 +40,4 @@ services:
       - name: users-route
         paths:
           - /users
+        strip_path: false
