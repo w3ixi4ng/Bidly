@@ -1,13 +1,13 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, AwareDatetime
 from typing import Optional
-from datetime import datetime
+
 
 class BidResponse(BaseModel):
     bid_id: str
     task_id: str
     bidder_id: Optional[str] = None
     bid_amount: float
-    timestamp: datetime
+    timestamp: AwareDatetime
 
 
 class BidListResponse(BaseModel):
@@ -18,7 +18,7 @@ class BidCreate(BaseModel):
     task_id: str
     bidder_id: Optional[str] = None
     bid_amount: float
-    timestamp: datetime
+    timestamp: AwareDatetime
 
 
 class BidCurrentResponse(BaseModel):
@@ -28,5 +28,5 @@ class BidCurrentResponse(BaseModel):
 
 class AuctionCreate(BaseModel):
     task_id: str
-    auction_end_time: datetime
+    auction_end_time: AwareDatetime
     starting_bid: float

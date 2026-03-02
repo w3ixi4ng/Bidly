@@ -21,7 +21,7 @@ def create_chat(chat: ChatCreate):
     return ChatResponse(**created_chat[0])
 
 
-@app.get("/chats/user/{user_id}", response_model=ChatListResponse)
+@app.get("/chats/user/{user_id}", response_model=ChatListResponse, status_code=200)
 def get_chats_by_user(user_id: str):
     chats = supabase.get_chats_by_user(user_id)
     if not chats:
@@ -29,7 +29,7 @@ def get_chats_by_user(user_id: str):
     return ChatListResponse(chats=chats)
 
 
-@app.get("/chats/task/{task_id}", response_model=ChatResponse)
+@app.get("/chats/task/{task_id}", response_model=ChatResponse, status_code=200)
 def get_chat_by_task(task_id: str):
     chat = supabase.get_chat_by_task(task_id)
     if not chat:

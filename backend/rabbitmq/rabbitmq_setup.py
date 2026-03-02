@@ -8,25 +8,25 @@ import pika
 
 amqp_host = "rabbitmq"
 amqp_port = 5672
-exchange_name = "bidly"
-exchange_type = "topic"
 
-queues = [
+exchanges = [
+    {"name": "bidly", "type": "topic", "arguments": {}},
+]
+
+# queues bound to "bidly" topic exchange
+bidly_queues = [
     {"name": "Start_Auction", "routing_key": "start.auction"},
     {"name": "Process_Winner", "routing_key": "process.winner"},
-
     {"name": "End_Auction_Payment", "routing_key": "end.auction.payment"},
     {"name": "End_Auction_Chat", "routing_key": "end.auction.chat"},
     {"name": "End_Auction_Notifications", "routing_key": "end.auction.notifications"},
-    
     {"name": "Out_Bidded_WebSocket", "routing_key": "out.bidded.websocket"},
     {"name": "Out_Bidded_Notifications", "routing_key": "out.bidded.notifications"},
 ]
 
 
-def create_exchange(hostname, port, exchange_name, exchange_type):
+def connect(hostname, port):
     print(f"Connecting to AMQP broker {hostname}:{port}...")
-    # connect to the broker
     connection = pika.BlockingConnection(
         pika.ConnectionParameters(
             host=hostname,
@@ -36,18 +36,16 @@ def create_exchange(hostname, port, exchange_name, exchange_type):
         )
     )
     print("Connected")
-
-    print("Create channel")
     channel = connection.channel()
+    return connection, channel
 
-    # Set up the exchange if the exchange doesn't exist
+
+def create_exchange(channel, exchange_name, exchange_type, arguments={}):
     print(f"Create exchange: {exchange_name}")
     channel.exchange_declare(
-        exchange=exchange_name, exchange_type=exchange_type, durable=True
+        exchange=exchange_name, exchange_type=exchange_type, durable=True, arguments=arguments
     )
     # 'durable' makes the exchange survive broker restarts
-
-    return connection, channel
 
 
 def create_queue(channel, exchange_name, queue_name, routing_key):
@@ -62,29 +60,48 @@ def create_queue(channel, exchange_name, queue_name, routing_key):
 
 
 def main():
+    connection = None
     try:
-        connection, channel = create_exchange(
-            hostname=amqp_host,
-            port=amqp_port,
-            exchange_name=exchange_name,
-            exchange_type=exchange_type,
+        connection, channel = connect(hostname=amqp_host, port=amqp_port)
+
+        for exchange in exchanges:
+            create_exchange(channel, exchange["name"], exchange["type"], exchange["arguments"])
+
+        for queue in bidly_queues:
+            create_queue(channel, "bidly", queue["name"], queue["routing_key"])
+
+        # waiting queue for delayed auction end messages — no consumers, messages expire and
+        # are dead-lettered to "bidly" exchange with routing key "process.winner"
+        print("Create queue: auction_in_progress (DLX → bidly/process.winner)")
+        channel.queue_declare(
+            queue="auction_in_progress",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "bidly",
+                "x-dead-letter-routing-key": "process.winner",
+            }
         )
 
-        for queue in queues:
-            create_queue(
-                channel=channel,
-                exchange_name=exchange_name,
-                queue_name=queue["name"],
-                routing_key=queue["routing_key"],
-            )
+        # waiting queue for delayed auction start messages — no consumers, messages expire and
+        # are dead-lettered to "bidly" exchange with routing key "start.auction
+        print("Create queue: auction_pending (DLX → bidly/start.auction)")
+        channel.queue_declare(
+            queue="auction_pending",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "bidly",
+                "x-dead-letter-routing-key": "start.auction",
+            }
+        )
+
         print("Setup complete")
     except pika.exceptions.AMQPConnectionError as e:
         print(f"Failed to connect to AMQP broker: {e}")
-        raise            
+        raise
     finally:
         if connection:
             print("Closing connection")
             connection.close()
-                
+
 if __name__ == "__main__":
-    main()  
+    main()

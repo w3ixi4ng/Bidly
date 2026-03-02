@@ -101,7 +101,14 @@ services:
         condition: service_healthy
     networks:
       - bidly-net
-
+  start-auction:
+    build: ./backend/orchestrators/start-auction
+    container_name: start-auction
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   kong:
     image: kong:3.6
     container_name: kong
@@ -128,3 +135,4 @@ services:
       - chat-logs
       - bids
       - users
+      

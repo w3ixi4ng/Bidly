@@ -29,7 +29,7 @@ def create_task(task: TaskCreate):
     return TaskResponse(**created_task[0])
 
 
-@app.get("/tasks/{task_id}", response_model=TaskResponse)
+@app.get("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
 def get_task(task_id: str):
     task = supebase.get_task(task_id)
     if not task:
@@ -37,7 +37,7 @@ def get_task(task_id: str):
     return TaskResponse(**task[0])
 
 
-@app.put("/tasks/{task_id}", response_model=TaskResponse)
+@app.put("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
 def update_task(task_id: str, task: TaskUpdate):
     task_data = task.model_dump(mode='json', exclude_unset=True)
     updated_task = supebase.update_task(task_id, task_data)
@@ -46,7 +46,7 @@ def update_task(task_id: str, task: TaskUpdate):
     return TaskResponse(**updated_task[0])
 
 
-@app.delete("/tasks/{task_id}")
+@app.delete("/tasks/{task_id}", status_code=200)
 def delete_task(task_id: str):
     deleted_task = supebase.delete_task(task_id)
     if not deleted_task:

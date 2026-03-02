@@ -39,7 +39,7 @@ def create_bid(bid: BidCreate):
     return BidResponse(**created_bid[0])
 
 
-@app.get("/bids/current/{task_id}")
+@app.get("/bids/current/{task_id}", response_model=BidCurrentResponse, status_code=200)
 def get_current_bid(task_id: str):
     try:
         current_bid = redis_service.get_current_bid(task_id)
@@ -50,7 +50,7 @@ def get_current_bid(task_id: str):
     return BidCurrentResponse(**current_bid)
 
 
-@app.get("/bids/task/{task_id}", response_model=BidListResponse)
+@app.get("/bids/task/{task_id}", response_model=BidListResponse, status_code=200)
 def get_bids_by_task(task_id: str):
     bids = supabase.get_bids_by_task(task_id)
     if not bids:
