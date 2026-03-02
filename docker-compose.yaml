@@ -1,5 +1,7 @@
-# volumes:
-
+volumes:
+  rabbitmq_data:
+    name: rabbitmq_data
+  
 networks:
   bidly-net:
     driver: bridge
@@ -10,7 +12,7 @@ services:
     build: ./backend/services/tasks
     container_name: tasks
     ports:
-      - "8000:8000"
+      - "8005:8005"
     networks:
       - bidly-net
     env_file:
@@ -20,7 +22,7 @@ services:
     build: ./backend/services/chats
     container_name: chats
     ports:
-      - "8001:8001"
+      - "8006:8006"
     networks:
       - bidly-net
     env_file:
@@ -56,3 +58,50 @@ services:
       - bidly-net
     env_file:
       - .env.supabase
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI
+    networks:
+      - bidly-net
+
+  rabbitmq-setup:
+    build: ./backend/rabbitmq
+    container_name: rabbitmq-setup
+    depends_on:
+      - rabbitmq
+    networks:
+      - bidly-net
+
+  kong:
+    image: kong:3.6
+    container_name: kong
+    restart: always
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yaml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+    volumes:
+      - ./backend/kong/kong.yaml:/etc/kong/kong.yaml:ro
+    ports:
+      - "80:8000"     # proxy (all client traffic goes here)
+      - "8001:8001"   # admin API
+      - "8443:8443"   # proxy SSL (if needed)
+    networks:
+      - bidly-net
+    depends_on:
+      - tasks
+      - chats
+      - chat-logs
+      - bids
+      - users

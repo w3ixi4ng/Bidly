@@ -27,9 +27,11 @@ def create_auction(auction_data: AuctionCreate):
 def create_bid(bid: BidCreate):
     try:
         redis_service.place_bid(bid.task_id, bid.bidder_id, bid.bid_amount, bid.timestamp.timestamp())
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"{str(e)}")
     
+    # only create the bid record in Supabase after successfully placing the bid in Redis 
     bid_data = bid.model_dump(mode='json')
     created_bid = supabase.create_bid(bid_data)
     if not created_bid:

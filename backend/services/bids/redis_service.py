@@ -50,8 +50,3 @@ class RedisService:
         bid_amount = self.redis_client.hget(auction_key, "current_bid")
         bidder_id = self.redis_client.hget(auction_key, "bidder_id")
         return {"bid_amount": float(bid_amount) if bid_amount else None, "bidder_id": bidder_id if bidder_id else None}
-    
-
-
-
-

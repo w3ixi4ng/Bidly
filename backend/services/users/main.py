@@ -27,7 +27,7 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.post("/auth/signup", status_code=201)
+@app.post("/users/auth/signup", status_code=201)
 async def signup(user_data: UserSignup):
     try:
         user, session = supabase_auth.signup_user(
@@ -56,7 +56,7 @@ async def signup(user_data: UserSignup):
         raise HTTPException(status_code=400, detail=f"Failed to create user: {str(e)}")
 
 
-@app.post("/auth/login")
+@app.post("/users/auth/login")
 async def login(credentials: UserLogin):
     try:
         user, session = supabase_auth.login_user(

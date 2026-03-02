@@ -1,0 +1,38 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: tasks-service
+    url: http://tasks:8005
+    routes:
+      - name: tasks-route
+        paths:
+          - /tasks
+
+  - name: chats-service
+    url: http://chats:8006
+    routes:
+      - name: chats-route
+        paths:
+          - /chats
+
+  - name: chat-logs-service
+    url: http://chat-logs:8002
+    routes:
+      - name: chat-logs-route
+        paths:
+          - /chat-logs
+
+  - name: bids-service
+    url: http://bids:8003
+    routes:
+      - name: bids-route
+        paths:
+          - /bids
+
+  - name: users-service
+    url: http://users:8004
+    routes:
+      - name: users-route
+        paths:
+          - /users
