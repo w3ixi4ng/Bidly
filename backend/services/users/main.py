@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from backend.services.users.schema import UserSignup, UserLogin, UserResponse, UserUpdate
-from backend.services.users.supabase_client import SupabaseAuthService
+from schema import UserSignup, UserLogin, UserResponse, UserUpdate
+from supabase_service import SupabaseAuthService
 import uvicorn
 
 app = FastAPI()
@@ -78,6 +78,12 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
+@app.get("/users", response_model=list[UserResponse])
+async def get_all_users():
+    users = supabase_auth.get_all_users()
+    return [UserResponse(**user) for user in users]
+
+
 @app.get("/users/{user_id}", response_model=UserResponse)
 async def get_user_profile(user_id: str):
     profile = supabase_auth.get_user_profile(user_id)
@@ -90,23 +96,17 @@ async def get_user_profile(user_id: str):
 async def update_user_profile(user_id: str, user_update: UserUpdate, current_user=Depends(get_current_user)):
     if user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden: You can only update your own profile")
-    
+
     update_data = user_update.model_dump(exclude_unset=True)
-    
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-    
+
     updated_profile = supabase_auth.update_user_profile(user_id, update_data)
     if not updated_profile:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return UserResponse(**updated_profile[0])
-
-
-@app.get("/users/all", response_model=list[UserResponse])
-async def get_all_users():
-    users = supabase_auth.get_all_users()
-    return [UserResponse(**user) for user in users]
 
 
 if __name__ == "__main__":
