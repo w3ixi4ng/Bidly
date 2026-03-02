@@ -1,9 +1,5 @@
 from time import time
 import redis
-import os
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
 
 PLACE_BID_SCRIPT = """
 local auction_key = KEYS[1]
@@ -23,12 +19,17 @@ redis.call("HSET", auction_key, "current_bid", bid_amount)
 return {ok="Bid placed successfully"}
 """
 
+# max_connections is set to 20 to allow for up to 20 concurrent bid placements without overwhelming the Redis server, 
+# this should be sufficient for our expected load while still providing good performance and reliability.
+_pool = redis.ConnectionPool(host="redis", 
+                             port=6379, 
+                             db=0, 
+                             decode_responses=True, 
+                             max_connections=20)
 
 class RedisService:
     def __init__(self):
-        # using Redis from Upstash which is a serverless Redis provider that allows us to use Redis without having to manage our own Redis server
-        # decode_responses=True makes it so that the responses from Redis are returned as strings instead of bytes which is more convenient to work with in Python
-        self.redis_client = redis.Redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
+        self.redis_client = redis.Redis(connection_pool=_pool)
         self.place_bid_script = self.redis_client.register_script(PLACE_BID_SCRIPT)
 
     def create_auction(self, task_id: str, auction_end_time: str, starting_bid: float):

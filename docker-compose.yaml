@@ -1,6 +1,8 @@
 volumes:
   rabbitmq_data:
     name: rabbitmq_data
+  redis_data:
+    name: redis_data
   
 networks:
   bidly-net:
@@ -38,6 +40,20 @@ services:
     env_file:
       - .env.firebase
 
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    networks:
+      - bidly-net
+    volumes:
+      - redis_data:/data
+    command: 
+      - redis-server
+      - --appendonly yes
+      - --appendfilename "redis_data.aof"
+      - --dir /data
+
   bids:
     build: ./backend/services/bids
     container_name: bids
@@ -47,7 +63,8 @@ services:
       - bidly-net
     env_file:
       - .env.supabase
-      - .env.redis
+    depends_on:
+      - redis
 
   users:
     build: ./backend/services/users
