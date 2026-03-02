@@ -40,6 +40,6 @@ services:
     build: ./backend/orchestrators/connect-chat
     container_name: connect-chat
     ports:
-      - "8003:8003"
+      - "8010:8010"
     networks:
       - bidly-net

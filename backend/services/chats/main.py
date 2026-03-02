@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from schema import ChatCreate, ChatListResponse, ChatResponse
-from backend.services.chats.supabase_service import SupabaseService
+from supabase_service import SupabaseService
 import uvicorn
 
 app = FastAPI()

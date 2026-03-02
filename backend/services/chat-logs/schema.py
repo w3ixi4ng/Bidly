@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 class MessageCreate(BaseModel):
-    sender_id: str
-    message: str
+    sender_id: str = Field(min_length=1)
+    message: str = Field(min_length=1)
 
 class MessageResponse(BaseModel):
     sender_id: str
