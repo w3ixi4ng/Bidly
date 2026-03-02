@@ -101,6 +101,7 @@ services:
         condition: service_healthy
     networks:
       - bidly-net
+
   start-auction:
     build: ./backend/orchestrators/start-auction
     container_name: start-auction
@@ -109,6 +110,18 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+ 
+  websocket:
+    build: ./backend/websocket
+    container_name: websocket
+    ports:
+      - "8007:8007"
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   kong:
     image: kong:3.6
     container_name: kong
