@@ -11,12 +11,12 @@ class SupabaseService:
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
 
 
-    def create_bid(self, bid_data: dict):
-        return self.client.schema("bids").table("bids").insert(bid_data).execute().data
+    def create_auction(self, auction_data: dict):
+        return self.client.table("auctions").insert(auction_data).execute().data
     
 
-    def get_bids_by_task(self, task_id: str):
-        return self.client.schema("bids").table("bids").select("*").eq("task_id", task_id).execute().data
+    def get_auctions_by_task(self, task_id: str):
+        return self.client.table("auctions").select("*").eq("task_id", task_id).execute().data
     
     
 

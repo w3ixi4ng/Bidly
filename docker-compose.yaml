@@ -25,6 +25,7 @@ services:
       - bidly-net
     env_file:
       - .env.supabase
+      - .env
 
   chat-logs:
     build: ./backend/services/chat-logs
@@ -35,24 +36,3 @@ services:
       - bidly-net
     env_file:
       - .env.firebase
-
-  bids:
-    build: ./backend/services/bids
-    container_name: bids
-    ports:
-      - "8003:8003"
-    networks:
-      - bidly-net
-    env_file:
-      - .env.supabase
-      - .env.redis
-
-  users:
-    build: ./backend/services/users
-    container_name: users
-    ports:
-      - "8004:8004"
-    networks:
-      - bidly-net
-    env_file:
-      - .env.supabase
