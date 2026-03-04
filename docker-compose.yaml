@@ -88,14 +88,16 @@ services:
     networks:
       - bidly-net
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   rabbitmq-setup:
     build: ./backend/rabbitmq
     container_name: rabbitmq-setup
+    restart: on-failure
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -105,11 +107,25 @@ services:
   start-auction:
     build: ./backend/orchestrators/start-auction
     container_name: start-auction
+    restart: on-failure
     networks:
       - bidly-net
     depends_on:
       rabbitmq:
         condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+  process-winner:
+    build: ./backend/orchestrators/process-winner
+    container_name: process-winner
+    restart: on-failure
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
  
   websocket:
     build: ./backend/websocket

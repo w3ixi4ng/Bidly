@@ -26,7 +26,9 @@ def start_auction(ch, method, properties, body):
         channel.basic_publish(
             exchange="",
             routing_key="auction_in_progress",
-            body=str(request.task_id),
+            body=json.dumps({
+                "task_id": str(request.task_id),
+            }),
             properties=pika.BasicProperties(
                 delivery_mode=2,  # make message persistent
                 expiration=str(int((request.auction_end_time.timestamp() - datetime.now(timezone.utc).timestamp()) * 1000))
@@ -35,9 +37,9 @@ def start_auction(ch, method, properties, body):
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
+        print(f"Failed to process message: {e}")
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-        raise Exception(f"Failed to create auction: {str(e)}")
 
 channel.basic_qos(prefetch_count=10)
 channel.basic_consume(queue="Start_Auction", on_message_callback=start_auction, auto_ack=False)
