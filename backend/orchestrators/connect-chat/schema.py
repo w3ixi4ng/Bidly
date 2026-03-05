@@ -13,12 +13,17 @@ class ConnectChatRequest(BaseModel):
             raise ValueError("sender_id must be either client_id or freelancer_id")
         return self
 
-class ConnectChatResponse(BaseModel):
-    chat_id: str
-    sender_id: str
-    message: str
+# class ConnectChatResponse(BaseModel):
+#     chat_id: str
+#     sender_id: str
+#     message: str
 
-
+class EndAuctionChatMessage(BaseModel):
+    task_id: str = Field(min_length=1)
+    client_id: str = Field(min_length=1)
+    freelancer_id: str = Field(min_length=1)
+    task_title: str = Field(min_length=1)
+    task_description: str = Field(min_length=1)
 # from chats
 # class ChatCreate(BaseModel):
 #     task_id: str

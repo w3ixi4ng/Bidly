@@ -34,6 +34,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // joshua did this (start): users join a chat
+
+  socket.on('join_chat', (data) => {
+      const userId = data?.user_id;
+      if (userId) {
+          socket.join(`user_${userId}`);
+          socket.emit('joined', { room: `user_${userId}` });
+      }
+  });
+
+  // joshua did this (end):
+
   socket.on('disconnect', () => {
     console.log(`[disconnect] client disconnected: ${socket.id}`);
   });
@@ -88,6 +100,33 @@ async function consumeTaskCreated(channel) {
   });
 }
 
+// joshua did this (start):
+
+async function consumeChatConnected(channel) {
+    await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
+    const q = await channel.assertQueue('Chat_Connected_WebSocket', { durable: true });
+    await channel.bindQueue(q.queue, EXCHANGE_NAME, 'chat.connected.websocket');
+    channel.prefetch(5);
+
+    channel.consume(q.queue, (msg) => {
+        if (!msg) return;
+        try {
+            const data = JSON.parse(msg.content.toString());
+            const { client_id, freelancer_id, chat_id } = data;
+
+            io.to(`user_${client_id}`).emit('chat_connected', { chat_id });
+            io.to(`user_${freelancer_id}`).emit('chat_connected', { chat_id });
+
+            channel.ack(msg);
+        } catch (e) {
+            console.error('[chat_connected] error processing message:', e);
+            channel.nack(msg, false, false);
+        }
+    });
+}
+
+// joshua did this (end)
+
 // ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
@@ -96,9 +135,11 @@ async function start() {
 
   const bidChannel = await connection.createChannel();
   const taskChannel = await connection.createChannel();
+  const chatChannel = await connection.createChannel(); //joshua added for connect_chat
 
   await consumeBidUpdates(bidChannel);
   await consumeTaskCreated(taskChannel);
+  await consumeChatConnected(chatChannel); //joshua added for connect_chat
 
   console.log('RabbitMQ consumers started.');
 

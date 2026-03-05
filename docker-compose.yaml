@@ -40,6 +40,20 @@ services:
     env_file:
       - .env.firebase
 
+  connect-chat:
+    build: ./backend/orchestrators/connect-chat
+    container_name: connect-chat
+    ports:
+      - "8010:8010"
+    restart: on-failure
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+
   redis:
     image: redis:alpine
     container_name: redis
