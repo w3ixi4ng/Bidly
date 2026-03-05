@@ -39,6 +39,9 @@ services:
       - bidly-net
     env_file:
       - .env.firebase
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   redis:
     image: redis:alpine
@@ -119,6 +122,20 @@ services:
     build: ./backend/orchestrators/process-winner
     container_name: process-winner
     restart: on-failure
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+
+  connect-chat:
+    build: ./backend/orchestrators/connect-chat
+    container_name: connect-chat
+    restart: on-failure
+    ports:
+      - "8010:8010"
     networks:
       - bidly-net
     depends_on:

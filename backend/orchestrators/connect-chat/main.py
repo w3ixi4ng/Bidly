@@ -1,42 +1,61 @@
-from fastapi import FastAPI, HTTPException
-import httpx
-import uvicorn
-from schema import ConnectChatRequest, ConnectChatResponse
+import pika
+import requests
+import json
 
-app = FastAPI()
 
-CHATS_URL = "http://chats:8001"
+connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
+channel = connection.channel()
+
+CHATS_URL = "http://chats:8006"
 CHAT_LOGS_URL = "http://chat-logs:8002"
 
-@app.get("/")
-async def health_check():
-    return {"status": "ok"}
+def connect_chat(ch, method, properties, body):
+    try:
+        data = json.loads(body.decode())
+        task_id = data["task_id"]
+        client_id = data["client_id"]
+        freelancer_id = data["freelancer_id"]
 
-@app.post("/connect-chat", response_model=ConnectChatResponse, status_code=201)
-async def connect_chat(body: ConnectChatRequest):
-    async with httpx.AsyncClient() as client:
-        chat_res = await client.post(f"{CHATS_URL}/chats", json={
-            "task_id": body.task_id,
-            "client_id": body.client_id,
-            "freelancer_id": body.freelancer_id
+        # Step 9-10: Create chat and get chat_id
+        chat_res = requests.post(f"{CHATS_URL}/chats", json={
+            "task_id": task_id,
+            "client_id": client_id,
+            "freelancer_id": freelancer_id
         })
+
         if chat_res.status_code != 201:
-            raise HTTPException(status_code=400, detail="Failed to create chat")
+            chat_res.raise_for_status()
 
         chat_id = chat_res.json()["chat_id"]
 
-        log_res = await client.post(f"{CHAT_LOGS_URL}/chat-logs/{chat_id}/messages", json={
-            "sender_id": body.sender_id,
-            "message": body.message
+        # Step 11-12: Send initial message to chat logs
+        log_res = requests.post(f"{CHAT_LOGS_URL}/chat-logs/{chat_id}/messages", json={
+            "sender_id": client_id,
+            "message": f"Chat started for task: {data.get('task_title', 'N/A')}"
         })
+
         if log_res.status_code != 201:
-            raise HTTPException(status_code=400, detail="Failed to create chat log")
+            log_res.raise_for_status()
 
-    return ConnectChatResponse(
-        chat_id=chat_id,
-        sender_id=body.sender_id,
-        message=body.message
-    )
+        # Publish to WebSocket so frontend gets notified
+        ch.basic_publish(
+            exchange="bidly",
+            routing_key="chat.connected.websocket",
+            body=json.dumps({
+                "chat_id": chat_id,
+                "client_id": client_id,
+                "freelancer_id": freelancer_id
+            })
+        )
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8010)
+        print(f"Chat connected: chat_id={chat_id}, client={client_id}, freelancer={freelancer_id}")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        print(f"Failed to process message: {e}")
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
+
+channel.basic_qos(prefetch_count=10)
+channel.basic_consume(queue="End_Auction_Chat", on_message_callback=connect_chat, auto_ack=False)
+channel.start_consuming()
