@@ -8,12 +8,12 @@ supabase = SupabaseService()
 
 
 @app.get("/")
-async def health_check():
+def health_check():
     return {"status": "ok"}
 
 
 @app.post("/chats", response_model=ChatResponse, status_code=201)
-async def create_chat(chat: ChatCreate):
+def create_chat(chat: ChatCreate):
     chat_data = chat.model_dump(mode='json')
     created_chat = supabase.create_chat(chat_data)
     if not created_chat:
@@ -21,16 +21,16 @@ async def create_chat(chat: ChatCreate):
     return ChatResponse(**created_chat[0])
 
 
-@app.get("/chats/user/{user_id}", response_model=ChatListResponse)
-async def get_chats_by_user(user_id: str):
+@app.get("/chats/user/{user_id}", response_model=ChatListResponse, status_code=200)
+def get_chats_by_user(user_id: str):
     chats = supabase.get_chats_by_user(user_id)
     if not chats:
         raise HTTPException(status_code=404, detail="No chats found for this user")
     return ChatListResponse(chats=chats)
 
 
-@app.get("/chats/task/{task_id}", response_model=ChatResponse)
-async def get_chat_by_task(task_id: str):
+@app.get("/chats/task/{task_id}", response_model=ChatResponse, status_code=200)
+def get_chat_by_task(task_id: str):
     chat = supabase.get_chat_by_task(task_id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -38,4 +38,4 @@ async def get_chat_by_task(task_id: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8001)
+    uvicorn.run("main:app", host="0.0.0.0", port=8006)

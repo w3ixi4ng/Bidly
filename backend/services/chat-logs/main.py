@@ -20,7 +20,7 @@ async def add_message(chat_id: str, body: MessageCreate):
     #timestamp handled at firebase db side
 
 
-@app.get("/chat-logs/{chat_id}/messages", response_model=MessageListResponse)
+@app.get("/chat-logs/{chat_id}/messages", response_model=MessageListResponse, status_code=200)
 async def get_messages(chat_id: str):
     messages = firebase.get_messages(chat_id)
     if not messages:
@@ -28,7 +28,7 @@ async def get_messages(chat_id: str):
     return MessageListResponse(messages=messages)
     #learnt about guard clause wow! happy path stays at the bottom cause easier to read if there are more errors
 
-@app.delete("/chat-logs/{chat_id}")
+@app.delete("/chat-logs/{chat_id}", status_code=200)
 async def delete_session(chat_id: str):
     if not firebase.delete_session(chat_id):
         raise HTTPException(status_code=404, detail="Chat not found")

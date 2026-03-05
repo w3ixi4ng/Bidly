@@ -1,6 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, AwareDatetime
 from typing import Literal, Optional
-from datetime import datetime
 
 
 class TaskResponse(BaseModel):
@@ -9,7 +8,10 @@ class TaskResponse(BaseModel):
     description: str
     client_id: str
     freelancer_id: Optional[str] = None
-    payment_id: Optional[str] = None
+    payment_id: str
+    auction_start_time: AwareDatetime
+    auction_end_time: AwareDatetime
+    auction_status: str
 
 class TaskListResponse(BaseModel):
     tasks: list[TaskResponse]
@@ -21,6 +23,10 @@ class TaskCreate(BaseModel):
     client_id: str
     freelancer_id: Optional[str] = None
     payment_id: str
+    auction_status: Literal["pending", "in-progress", "completed", "cancelled"] = "pending"
+    auction_start_time: AwareDatetime
+    auction_end_time: AwareDatetime
+
 
 
 class TaskUpdate(BaseModel):
@@ -28,6 +34,10 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     freelancer_id: Optional[str] = None
     payment_id: Optional[str] = None
+    auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids"]] = None
+    auction_start_time: Optional[AwareDatetime] = None
+    auction_end_time: Optional[AwareDatetime] = None
+
 
 
 
