@@ -13,17 +13,6 @@ rabbitmq_connection = None
 bidly_exchange = None
 
 
-async def publish_to_websocket(chat_id: str, sender_id: str, message: str):
-    await bidly_exchange.publish(
-        aio_pika.Message(body=json.dumps({
-            "chat_id": chat_id,
-            "sender_id": sender_id,
-            "message": message
-        }).encode()),
-        routing_key="new.message.websocket"
-    )
-
-
 async def process_auction_end(message: aio_pika.IncomingMessage):
     async with message.process():
         try:
@@ -49,7 +38,17 @@ async def process_auction_end(message: aio_pika.IncomingMessage):
                 })
                 log_res.raise_for_status()
 
-            await publish_to_websocket(chat_id, user_1_id, template_message)
+            # Notify the winner about the new chat message
+            await bidly_exchange.publish(
+                aio_pika.Message(body=json.dumps({
+                    "chat_id": chat_id,
+                    "sender_id": user_1_id,
+                    "recipient_id": user_2_id,
+                    "message": template_message
+                }).encode()),
+                routing_key="new.message.websocket"
+            )
+
             print(f"Chat connected: chat_id={chat_id}, user_1={user_1_id}, user_2={user_2_id}")
 
         except Exception as e:
@@ -100,7 +99,17 @@ async def send_message(body: SendMessageRequest):
     if log_res.status_code != 201:
         raise HTTPException(status_code=log_res.status_code, detail="Failed to store message")
 
-    await publish_to_websocket(body.chat_id, body.sender_id, body.message)
+    # Notify the other user via websocket queue
+    recipient_id = chat_data["user_2_id"] if body.sender_id == chat_data["user_1_id"] else chat_data["user_1_id"]
+    await bidly_exchange.publish(
+        aio_pika.Message(body=json.dumps({
+            "chat_id": body.chat_id,
+            "sender_id": body.sender_id,
+            "recipient_id": recipient_id,
+            "message": body.message
+        }).encode()),
+        routing_key="new.message.websocket"
+    )
 
     return {"status": "sent"}
 
