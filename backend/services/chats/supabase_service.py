@@ -21,6 +21,10 @@ class SupabaseService:
         response = self.client.schema("chats").from_("chats").insert(chat_data).execute()
         return response.data
 
+    def get_chat_by_id(self, chat_id: str):
+        response = self.client.schema("chats").from_("chats").select("*").eq("chat_id", chat_id).execute()
+        return response.data
+
     def get_chats_by_user(self, user_id: str):
         response = self.client.schema("chats").from_("chats").select("*").or_(f"user_1_id.eq.{user_id},user_2_id.eq.{user_id}").execute()
         return response.data

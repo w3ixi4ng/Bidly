@@ -83,6 +83,15 @@ app = FastAPI(lifespan=lifespan)
 @app.post("/connect-chat/send", status_code=201)
 async def send_message(body: SendMessageRequest):
     async with httpx.AsyncClient() as client:
+        # Verify sender is a participant of the chat
+        chat_res = await client.get(f"{CHATS_URL}/chats/{body.chat_id}")
+        if chat_res.status_code == 404:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        chat_res.raise_for_status()
+        chat_data = chat_res.json()
+        if body.sender_id not in (chat_data["user_1_id"], chat_data["user_2_id"]):
+            raise HTTPException(status_code=403, detail="Sender is not a participant of this chat")
+
         log_res = await client.post(f"{CHAT_LOGS_URL}/chat-logs/{body.chat_id}/messages", json={
             "sender_id": body.sender_id,
             "message": body.message
