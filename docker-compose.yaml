@@ -39,9 +39,6 @@ services:
       - bidly-net
     env_file:
       - .env.firebase
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
 
   redis:
     image: redis:alpine
@@ -181,6 +178,7 @@ services:
       - chat-logs
       - bids
       - users
+      - connect-chat
 
   frontend:
     build: ./frontend

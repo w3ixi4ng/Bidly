@@ -11,16 +11,16 @@ class SupabaseService:
         self.client: Client = create_client(self.url, self.key)
 
     def create_chat(self, chat_data: dict):
-        existing_chat = self.client.schema("chats").from_("chats").select("*").eq("task_id", chat_data["task_id"]).execute()
+        user1 = chat_data["user_1_id"]
+        user2 = chat_data["user_2_id"]
+        existing_chat = self.client.schema("chats").from_("chats").select("*").or_(
+            f"and(user_1_id.eq.{user1},user_2_id.eq.{user2}),and(user_1_id.eq.{user2},user_2_id.eq.{user1})"
+        ).execute()
         if existing_chat.data:
             return existing_chat.data
         response = self.client.schema("chats").from_("chats").insert(chat_data).execute()
         return response.data
-    
+
     def get_chats_by_user(self, user_id: str):
-        response = self.client.schema("chats").from_("chats").select("*").or_(f"client_id.eq.{user_id},freelancer_id.eq.{user_id}").execute()
-        return response.data
-    
-    def get_chat_by_task(self, task_id: str):
-        response = self.client.schema("chats").from_("chats").select("*").eq("task_id", task_id).execute()
+        response = self.client.schema("chats").from_("chats").select("*").or_(f"user_1_id.eq.{user_id},user_2_id.eq.{user_id}").execute()
         return response.data

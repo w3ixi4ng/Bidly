@@ -1,61 +1,100 @@
-import pika
-import requests
+import aio_pika
+import httpx
 import json
-
-
-connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
-channel = connection.channel()
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from schema import SendMessageRequest
+import uvicorn
 
 CHATS_URL = "http://chats:8006"
 CHAT_LOGS_URL = "http://chat-logs:8002"
 
-def connect_chat(ch, method, properties, body):
-    try:
-        data = json.loads(body.decode())
-        task_id = data["task_id"]
-        client_id = data["client_id"]
-        freelancer_id = data["freelancer_id"]
+rabbitmq_connection = None
+bidly_exchange = None
 
-        # Step 9-10: Create chat and get chat_id
-        chat_res = requests.post(f"{CHATS_URL}/chats", json={
-            "task_id": task_id,
-            "client_id": client_id,
-            "freelancer_id": freelancer_id
+
+async def publish_to_websocket(chat_id: str, sender_id: str, message: str):
+    await bidly_exchange.publish(
+        aio_pika.Message(body=json.dumps({
+            "chat_id": chat_id,
+            "sender_id": sender_id,
+            "message": message
+        }).encode()),
+        routing_key="new.message.websocket"
+    )
+
+
+async def process_auction_end(message: aio_pika.IncomingMessage):
+    async with message.process():
+        try:
+            data = json.loads(message.body.decode())
+            user_1_id = data["user_1_id"]
+            user_2_id = data["user_2_id"]
+            task_title = data.get("task_title", "N/A")
+
+            async with httpx.AsyncClient() as client:
+                # Create chat (or get existing) between the two users
+                chat_res = await client.post(f"{CHATS_URL}/chats", json={
+                    "user_1_id": user_1_id,
+                    "user_2_id": user_2_id
+                })
+                chat_res.raise_for_status()
+                chat_id = chat_res.json()["chat_id"]
+
+                # Send template message from the client to inform the winner
+                template_message = f"Congratulations! You've won the bid for '{task_title}'."
+                log_res = await client.post(f"{CHAT_LOGS_URL}/chat-logs/{chat_id}/messages", json={
+                    "sender_id": user_1_id,
+                    "message": template_message
+                })
+                log_res.raise_for_status()
+
+            await publish_to_websocket(chat_id, user_1_id, template_message)
+            print(f"Chat connected: chat_id={chat_id}, user_1={user_1_id}, user_2={user_2_id}")
+
+        except Exception as e:
+            print(f"Failed to process auction end message: {e}")
+
+
+async def start_consumer():
+    global rabbitmq_connection, bidly_exchange
+    rabbitmq_connection = await aio_pika.connect_robust("amqp://rabbitmq")
+    channel = await rabbitmq_connection.channel()
+    await channel.set_qos(prefetch_count=10)
+
+    bidly_exchange = await channel.declare_exchange("bidly", aio_pika.ExchangeType.TOPIC, durable=True)
+
+    queue = await channel.declare_queue("End_Auction_Chat", durable=True)
+    await queue.consume(process_auction_end)
+    print("RabbitMQ consumer started on End_Auction_Chat")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await start_consumer()
+    yield
+    if rabbitmq_connection:
+        await rabbitmq_connection.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.post("/connect-chat/send", status_code=201)
+async def send_message(body: SendMessageRequest):
+    async with httpx.AsyncClient() as client:
+        log_res = await client.post(f"{CHAT_LOGS_URL}/chat-logs/{body.chat_id}/messages", json={
+            "sender_id": body.sender_id,
+            "message": body.message
         })
 
-        if chat_res.status_code != 201:
-            chat_res.raise_for_status()
+    if log_res.status_code != 201:
+        raise HTTPException(status_code=log_res.status_code, detail="Failed to store message")
 
-        chat_id = chat_res.json()["chat_id"]
+    await publish_to_websocket(body.chat_id, body.sender_id, body.message)
 
-        # Step 11-12: Send initial message to chat logs
-        log_res = requests.post(f"{CHAT_LOGS_URL}/chat-logs/{chat_id}/messages", json={
-            "sender_id": client_id,
-            "message": f"Chat started for task: {data.get('task_title', 'N/A')}"
-        })
-
-        if log_res.status_code != 201:
-            log_res.raise_for_status()
-
-        # Publish to WebSocket so frontend gets notified
-        ch.basic_publish(
-            exchange="bidly",
-            routing_key="chat.connected.websocket",
-            body=json.dumps({
-                "chat_id": chat_id,
-                "client_id": client_id,
-                "freelancer_id": freelancer_id
-            })
-        )
-
-        print(f"Chat connected: chat_id={chat_id}, client={client_id}, freelancer={freelancer_id}")
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    except Exception as e:
-        print(f"Failed to process message: {e}")
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+    return {"status": "sent"}
 
 
-channel.basic_qos(prefetch_count=10)
-channel.basic_consume(queue="End_Auction_Chat", on_message_callback=connect_chat, auto_ack=False)
-channel.start_consuming()
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8010)

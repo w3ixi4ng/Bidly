@@ -51,11 +51,9 @@ def process_winner(ch, method, properties, body):
             exchange="bidly",
             routing_key="end.auction.chat",
             body=json.dumps({
-                "task_id": request.task_id, # joshua added for connect-chat
-                "client_id": task_data.get("client_id"),
-                "freelancer_id": task_data.get("freelancer_id"),
+                "user_1_id": task_data.get("client_id"),
+                "user_2_id": task_data.get("freelancer_id"),
                 "task_title": task_data.get("title"),
-                "task_description": task_data.get("description"),
             })
         )
 
