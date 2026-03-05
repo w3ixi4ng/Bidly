@@ -87,8 +87,8 @@ services:
       - "15672:15672"  # management UI
     networks:
       - bidly-net
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+    healthcheck: # ensure RabbitMQ is healthy before other services start
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"] 
       interval: 10s
       timeout: 10s
       retries: 10
@@ -100,7 +100,7 @@ services:
     restart: on-failure
     depends_on:
       rabbitmq:
-        condition: service_healthy
+        condition: service_healthy # ensure RabbitMQ is up and healthy before starting setup
     networks:
       - bidly-net
 
@@ -112,9 +112,9 @@ services:
       - bidly-net
     depends_on:
       rabbitmq:
-        condition: service_healthy
+        condition: service_healthy # ensure RabbitMQ is up and healthy before starting setup
       rabbitmq-setup:
-        condition: service_completed_successfully
+        condition: service_completed_successfully # service exits with code 0
   process-winner:
     build: ./backend/orchestrators/process-winner
     container_name: process-winner
