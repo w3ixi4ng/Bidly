@@ -16,9 +16,12 @@ exchanges = [
 # queues bound to "bidly" topic exchange
 bidly_queues = [
     {"name": "Start_Auction", "routing_key": "start.auction"},
+    {"name": "Create_Task", "routing_key": "create.task"},
+
     {"name": "Process_Winner", "routing_key": "process.winner"},
     {"name": "End_Auction_Payment", "routing_key": "end.auction.payment"},
     {"name": "End_Auction_Chat", "routing_key": "end.auction.chat"},
+    {"name": "End_Auction_WebSocket", "routing_key": "end.auction.websocket"},
     {"name": "End_Auction_Notifications", "routing_key": "end.auction.notifications"},
     {"name": "Out_Bidded_WebSocket", "routing_key": "out.bidded.websocket"},
     {"name": "Out_Bidded_Notifications", "routing_key": "out.bidded.notifications"},

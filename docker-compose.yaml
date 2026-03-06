@@ -64,8 +64,12 @@ services:
     env_file:
       - .env.supabase
     depends_on:
-      - redis
-
+      rabbitmq:
+        condition: service_healthy # ensure RabbitMQ is up and healthy before starting bids service
+      rabbitmq-setup:
+        condition: service_completed_successfully # ensure RabbitMQ setup is complete before starting bids service
+      redis:
+        condition: service_started 
   users:
     build: ./backend/services/users
     container_name: users
