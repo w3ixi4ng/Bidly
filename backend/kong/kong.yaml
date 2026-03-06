@@ -42,6 +42,15 @@ services:
           - /users
         strip_path: false
 
+
+  - name: create-task-service
+    url: http://create-task:8009
+    routes:
+      - name: create-task-route
+        paths:
+          - /create-task
+        strip_path: false
+
 plugins:
   - name: cors
     config:

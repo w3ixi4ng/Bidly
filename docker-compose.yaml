@@ -172,3 +172,17 @@ services:
       - "3000:3000"
     networks:
       - bidly-net
+  create-task:
+    build: ./backend/orchestrators/create-task
+    container_name: create-task
+    ports:
+      - "8009:8009"
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+      tasks:
+        condition: service_started

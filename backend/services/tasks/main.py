@@ -29,6 +29,14 @@ def create_task(task: TaskCreate):
     return TaskResponse(**created_task[0])
 
 
+@app.get("/tasks/payment/{payment_intent_id}", response_model=TaskResponse, status_code=200)
+def get_task_by_payment_intent(payment_intent_id: str):
+    task = supebase.get_task_by_payment_intent_id(payment_intent_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return TaskResponse(**task[0])
+
+
 @app.get("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
 def get_task(task_id: str):
     task = supebase.get_task(task_id)
