@@ -44,6 +44,7 @@ async def create_task(body: CreateTaskRequest):
         if check.status_code == 200:
             return check.json()
 
+        # Create the task
         task_res = await client.post(f"{TASKS_URL}/tasks", json={
             "title": body.title,
             "description": body.description,
@@ -60,7 +61,6 @@ async def create_task(body: CreateTaskRequest):
 
         task = task_res.json()
 
-    # Hopefully this works, timezone stuff used to mess up last time
     # Schedule auction start via auction_pending DLX queue
     # TTL = ms until auction_start_time; if already past, publish directly to start.auction
     delay_ms = int(
@@ -74,7 +74,7 @@ async def create_task(body: CreateTaskRequest):
     }).encode()
 
     if delay_ms > 0:
-        # Delayed start
+        # Delayed start: publish to auction_pending with TTL, dead-letters to start.auction
         channel = await rabbitmq_connection.channel()
         await channel.default_exchange.publish(
             aio_pika.Message(
@@ -85,7 +85,7 @@ async def create_task(body: CreateTaskRequest):
             routing_key="auction_pending",
         )
     else:
-        # Immediate start
+        # Immediate start: publish directly to bidly exchange → Start_Auction
         await bidly_exchange.publish(
             aio_pika.Message(
                 body=auction_payload,
