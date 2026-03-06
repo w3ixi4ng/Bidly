@@ -99,8 +99,11 @@ async def send_message(body: SendMessageRequest):
             raise HTTPException(status_code=404, detail="Chat not found")
         chat_res.raise_for_status()
         chat_data = chat_res.json()
-        if body.sender_id not in (chat_data["user_1_id"], chat_data["user_2_id"]):
+        participants = (chat_data["user_1_id"], chat_data["user_2_id"])
+        if body.sender_id not in participants:
             raise HTTPException(status_code=403, detail="Sender is not a participant of this chat")
+        if body.recipient_id not in participants:
+            raise HTTPException(status_code=403, detail="Recipient is not a participant of this chat")
 
         log_res = await client.post(f"{CHAT_LOGS_URL}/chat-logs/{body.chat_id}/messages", json={
             "sender_id": body.sender_id,
