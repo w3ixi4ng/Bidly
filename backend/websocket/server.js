@@ -34,15 +34,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join_chat', (data) => {
-    const chatId = data?.chat_id;
-    if (chatId) {
-      const room = `chat_${chatId}`;
+  socket.on('join_user', (data) => {
+    const userId = data?.user_id;
+    if (userId) {
+      const room = `user_${userId}`;
       socket.join(room);
-      console.log(`[join_chat] ${socket.id} joined room ${room}`);
+      console.log(`[join_user] ${socket.id} joined room ${room}`);
       socket.emit('joined', { room });
     } else {
-      socket.emit('error', { message: 'chat_id is required' });
+      socket.emit('error', { message: 'user_id is required' });
     }
   });
 
@@ -110,13 +110,17 @@ async function consumeNewMessages(channel) {
     if (!msg) return;
     try {
       const data = JSON.parse(msg.content.toString());
-      const { chat_id } = data;
-      if (chat_id) {
-        const room = `chat_${chat_id}`;
-        io.to(room).emit('new_message', data);
-        console.log(`[new_message] emitted to room ${room}:`, data);
+      const { recipient_id, sender_id, notify_sender } = data;
+      if (recipient_id) {
+        if (notify_sender && sender_id) {
+          io.to(`user_${sender_id}`).to(`user_${recipient_id}`).emit('new_message', data);
+          console.log(`[new_message] emitted to user_${sender_id} and user_${recipient_id}:`, data);
+        } else {
+          io.to(`user_${recipient_id}`).emit('new_message', data);
+          console.log(`[new_message] emitted to user_${recipient_id}:`, data);
+        }
       } else {
-        console.log('[new_message] missing chat_id in message:', data);
+        console.log('[new_message] missing recipient_id in message:', data);
       }
       channel.ack(msg);
     } catch (e) {

@@ -3,6 +3,7 @@ import httpx
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from schema import SendMessageRequest
 import uvicorn
 
@@ -11,6 +12,19 @@ CHAT_LOGS_URL = "http://chat-logs:8002"
 
 rabbitmq_connection = None
 bidly_exchange = None
+
+
+async def publish_to_websocket(chat_id: str, sender_id: str, recipient_id: str, message: str, notify_sender: bool = False):
+    await bidly_exchange.publish(
+        aio_pika.Message(body=json.dumps({
+            "chat_id": chat_id,
+            "sender_id": sender_id,
+            "recipient_id": recipient_id,
+            "message": message,
+            "notify_sender": notify_sender,
+        }).encode()),
+        routing_key="new.message.websocket"
+    )
 
 
 async def process_auction_end(message: aio_pika.IncomingMessage):
@@ -38,17 +52,7 @@ async def process_auction_end(message: aio_pika.IncomingMessage):
                 })
                 log_res.raise_for_status()
 
-            # Notify the winner about the new chat message
-            await bidly_exchange.publish(
-                aio_pika.Message(body=json.dumps({
-                    "chat_id": chat_id,
-                    "sender_id": user_1_id,
-                    "recipient_id": user_2_id,
-                    "message": template_message
-                }).encode()),
-                routing_key="new.message.websocket"
-            )
-
+            await publish_to_websocket(chat_id, user_1_id, user_2_id, template_message, notify_sender=True)
             print(f"Chat connected: chat_id={chat_id}, user_1={user_1_id}, user_2={user_2_id}")
 
         except Exception as e:
@@ -78,6 +82,13 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/connect-chat/send", status_code=201)
 async def send_message(body: SendMessageRequest):
@@ -99,17 +110,7 @@ async def send_message(body: SendMessageRequest):
     if log_res.status_code != 201:
         raise HTTPException(status_code=log_res.status_code, detail="Failed to store message")
 
-    # Notify the other user via websocket queue
-    recipient_id = chat_data["user_2_id"] if body.sender_id == chat_data["user_1_id"] else chat_data["user_1_id"]
-    await bidly_exchange.publish(
-        aio_pika.Message(body=json.dumps({
-            "chat_id": body.chat_id,
-            "sender_id": body.sender_id,
-            "recipient_id": recipient_id,
-            "message": body.message
-        }).encode()),
-        routing_key="new.message.websocket"
-    )
+    await publish_to_websocket(body.chat_id, body.sender_id, body.recipient_id, body.message)
 
     return {"status": "sent"}
 
