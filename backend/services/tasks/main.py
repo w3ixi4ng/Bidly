@@ -1,10 +1,25 @@
+import os
+import asyncio
 from fastapi import FastAPI, HTTPException
-from schema import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
-from supabase_service import SupabaseService
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from dotenv import load_dotenv, find_dotenv
+from schema import SendEmailRequest, SendEmailResponse
 import uvicorn
 
+
+load_dotenv(find_dotenv(".env.twilio"))
+
 app = FastAPI()
-supabase = SupabaseService()
+
+sendgrid_api_key = os.environ.get("SENDGRID_API_KEY")
+sg_client = SendGridAPIClient(sendgrid_api_key)
+
+sendgrid_templates = {
+    "auction_end_freelancer": "d-4373f46345c94ffdb057c859549f2243",
+    "auction_end_client": "d-bc2b98e66a774ce8adb5b86033151806",
+    "bid_outbid_freelancer": "d-a85df2ba477b469da503d788fb48dfc2"
+}
 
 
 @app.get("/")
@@ -12,60 +27,28 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/tasks", response_model=TaskListResponse)
-def get_tasks():
-    tasks = supabase.get_tasks()
-    if not tasks:
-        raise HTTPException(status_code=404, detail="No tasks found")
-    return TaskListResponse(tasks=tasks)
+@app.post("/notifications/send", response_model=SendEmailResponse)
+async def send_email(request: SendEmailRequest):
+    
+    template_id = sendgrid_templates.get(request.template_name)
+    if not template_id:
+        raise HTTPException(status_code=404, detail=f"Template '{request.template_name}' not found")
+    
+    try:
+        message = Mail(from_email="esdbidly@gmail.com", to_emails=request.to_email)
+        message.template_id = template_id
+        message.dynamic_template_data = request.dynamic_template_data
+        
+        response = await asyncio.to_thread(sg_client.send, message)
+        
+        return SendEmailResponse(
+            status="success",
+            message="Email sent successfully",
+            status_code=response.status_code
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
-
-@app.post("/tasks", response_model=TaskResponse, status_code=201)
-def create_task(task: TaskCreate):
-    task_data = task.model_dump(mode='json')
-    created_task = supabase.create_task(task_data)
-    if not created_task:
-        raise HTTPException(status_code=400, detail="Failed to create task")
-    return TaskResponse(**created_task[0])
-
-
-@app.get("/tasks/payment_id/{payment_id}", response_model=TaskListResponse, status_code=200)
-def get_task_by_payment_id(payment_id: str):
-    tasks = supebase.get_task_by_payment_id(payment_id)
-    return TaskListResponse(tasks=tasks)
-
-
-@app.get("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
-def get_task(task_id: str):
-    task = supabase.get_task(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return TaskResponse(**task[0])
-
-
-@app.put("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
-def update_task(task_id: str, task: TaskUpdate):
-    task_data = task.model_dump(mode='json', exclude_unset=True)
-    updated_task = supabase.update_task(task_id, task_data)
-    if not updated_task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return TaskResponse(**updated_task[0])
-
-
-@app.delete("/tasks/{task_id}", status_code=200)
-def delete_task(task_id: str):
-    deleted_task = supabase.delete_task(task_id)
-    if not deleted_task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Task deleted successfully"}
-
-
-@app.get("/tasks/payment_id/{payment_id}", response_model=TaskListResponse, status_code=200)
-def get_tasks_by_payment_id(payment_id: str):
-    tasks = supabase.get_tasks_by_payment_id(payment_id)
-    if not tasks:
-        return TaskListResponse(tasks=[])
-    return TaskListResponse(tasks=tasks)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8005)
+    uvicorn.run("main:app", host="0.0.0.0", port=8005, reload=True)
