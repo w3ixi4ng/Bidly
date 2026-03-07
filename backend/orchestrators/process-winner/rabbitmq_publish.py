@@ -19,7 +19,8 @@ def publish_end_auction_messages(ch, task_id: str, task_data: dict, winner: dict
             "task_id": task_id,
             "client_id": task_data.get("client_id"),
             "freelancer_id": task_data.get("freelancer_id"),
-            "amount": winner.get("bid_amount")
+            "amount": winner.get("bid_amount"),
+            "payment_id": task_data.get("payment_id")
         })
     )
 
