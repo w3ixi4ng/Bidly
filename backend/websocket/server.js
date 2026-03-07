@@ -130,6 +130,31 @@ async function consumeNewMessages(channel) {
   });
 }
 
+async function consumeAuctionEnded(channel) {
+  await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
+  const q = await channel.assertQueue('End_Auction_WebSocket', { durable: true });
+  await channel.bindQueue(q.queue, EXCHANGE_NAME, 'process.winner');
+  channel.prefetch(10);
+
+  channel.consume(q.queue, (msg) => {
+    if (!msg) return;
+    try {
+      const data = JSON.parse(msg.content.toString());
+      const { task_id } = data;
+      if (task_id) {
+        io.emit('auction_ended', { task_id });
+        console.log(`[auction_ended] broadcasted globally for task_id ${task_id}`);
+      } else {
+        console.log('[auction_ended] missing task_id in message:', data);
+      }
+      channel.ack(msg);
+    } catch (e) {
+      console.error('[auction_ended] error processing message:', e);
+      channel.nack(msg, false, false);
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
@@ -139,10 +164,12 @@ async function start() {
   const bidChannel = await connection.createChannel();
   const taskChannel = await connection.createChannel();
   const chatChannel = await connection.createChannel();
+  const auctionChannel = await connection.createChannel();
 
   await consumeBidUpdates(bidChannel);
   await consumeTaskCreated(taskChannel);
   await consumeNewMessages(chatChannel);
+  await consumeAuctionEnded(auctionChannel);
 
   console.log('RabbitMQ consumers started.');
 
