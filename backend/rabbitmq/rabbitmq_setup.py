@@ -24,6 +24,7 @@ bidly_queues = [
     {"name": "Out_Bidded_Notifications", "routing_key": "out.bidded.notifications"},
 
     {"name": "Task_Created_WebSocket", "routing_key": "task.created.websocket"},
+    {"name": "New_Message_WebSocket", "routing_key": "new.message.websocket"}, # joshua added: for chat-log
 ]
 
 

@@ -3,7 +3,7 @@ volumes:
     name: rabbitmq_data
   redis_data:
     name: redis_data
-  
+
 networks:
   bidly-net:
     driver: bridge
@@ -48,7 +48,7 @@ services:
       - bidly-net
     volumes:
       - redis_data:/data
-    command: 
+    command:
       - redis-server
       - --appendonly yes
       - --appendfilename "redis_data.aof"
@@ -126,7 +126,21 @@ services:
         condition: service_healthy
       rabbitmq-setup:
         condition: service_completed_successfully
- 
+
+  connect-chat:
+    build: ./backend/orchestrators/connect-chat
+    container_name: connect-chat
+    restart: on-failure
+    ports:
+      - "8010:8010"
+    networks:
+      - bidly-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      rabbitmq-setup:
+        condition: service_completed_successfully
+
   websocket:
     build: ./backend/websocket
     container_name: websocket
@@ -164,7 +178,8 @@ services:
       - chat-logs
       - bids
       - users
-    
+      - connect-chat
+
   frontend:
     build: ./frontend
     container_name: frontend

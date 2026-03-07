@@ -17,7 +17,6 @@ async def health_check():
 async def add_message(chat_id: str, body: MessageCreate):
     firebase.add_message(chat_id, body.sender_id, body.message)
     return MessageResponse(**body.model_dump(), timestamp=None)
-    #timestamp handled at firebase db side
 
 
 @app.get("/chat-logs/{chat_id}/messages", response_model=MessageListResponse, status_code=200)
@@ -26,7 +25,6 @@ async def get_messages(chat_id: str):
     if not messages:
         raise HTTPException(status_code=404, detail="Chat not found")
     return MessageListResponse(messages=messages)
-    #learnt about guard clause wow! happy path stays at the bottom cause easier to read if there are more errors
 
 @app.delete("/chat-logs/{chat_id}", status_code=200)
 async def delete_session(chat_id: str):
