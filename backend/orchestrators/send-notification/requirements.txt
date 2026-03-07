@@ -1,0 +1,4 @@
+pika
+httpx
+python-dotenv
+pydantic
