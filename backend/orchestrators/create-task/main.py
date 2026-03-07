@@ -39,17 +39,18 @@ async def health_check():
 @app.post("/create-task", status_code=201)
 async def create_task(body: CreateTaskRequest):
     async with httpx.AsyncClient() as client:
-        # Idempotency: return existing task if payment_intent_id already used
-        check = await client.get(f"{TASKS_URL}/tasks/payment/{body.payment_intent_id}")
-        if check.status_code == 200:
-            return check.json()
+        # Idempotency: check if task already exists for this payment_id
+        check = await client.get(f"{TASKS_URL}/tasks/payment_id/{body.payment_id}")
+        existing = check.json().get("tasks", [])
+        if existing:
+            return existing[0]
 
-        # Create the task
+        # No task yet — create it
         task_res = await client.post(f"{TASKS_URL}/tasks", json={
             "title": body.title,
             "description": body.description,
             "client_id": body.client_id,
-            "payment_intent_id": body.payment_intent_id,
+            "payment_id": body.payment_id,
             "starting_bid": body.starting_bid,
             "auction_start_time": body.auction_start_time.isoformat(),
             "auction_end_time": body.auction_end_time.isoformat(),
@@ -61,8 +62,7 @@ async def create_task(body: CreateTaskRequest):
 
         task = task_res.json()
 
-    # Schedule auction start via auction_pending DLX queue
-    # TTL = ms until auction_start_time; if already past, publish directly to start.auction
+    # Schedule auction start
     delay_ms = int(
         (body.auction_start_time.timestamp() - datetime.now(timezone.utc).timestamp()) * 1000
     )
@@ -74,7 +74,6 @@ async def create_task(body: CreateTaskRequest):
     }).encode()
 
     if delay_ms > 0:
-        # Delayed start: publish to auction_pending with TTL, dead-letters to start.auction
         channel = await rabbitmq_connection.channel()
         await channel.default_exchange.publish(
             aio_pika.Message(
@@ -85,7 +84,6 @@ async def create_task(body: CreateTaskRequest):
             routing_key="auction_pending",
         )
     else:
-        # Immediate start: publish directly to bidly exchange → Start_Auction
         await bidly_exchange.publish(
             aio_pika.Message(
                 body=auction_payload,
@@ -94,7 +92,7 @@ async def create_task(body: CreateTaskRequest):
             routing_key="start.auction",
         )
 
-    # Notify WebSocket so home feed updates live
+    # Notify WebSocket for live home feed
     await bidly_exchange.publish(
         aio_pika.Message(body=json.dumps(task).encode()),
         routing_key="task.created.websocket",

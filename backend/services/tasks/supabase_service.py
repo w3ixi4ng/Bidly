@@ -18,8 +18,8 @@ class SupabaseService:
         response = self.client.schema("tasks").from_("tasks").select("*").eq("task_id", task_id).execute()
         return response.data
 
-    def get_task_by_payment_intent_id(self, payment_intent_id: str):
-        response = self.client.schema("tasks").from_("tasks").select("*").eq("payment_intent_id", payment_intent_id).execute()
+    def get_task_by_payment_id(self, payment_id: str):
+        response = self.client.schema("tasks").from_("tasks").select("*").eq("payment_id", payment_id).execute()
         return response.data
 
     def create_task(self, task_data: dict):
