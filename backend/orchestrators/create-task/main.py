@@ -43,7 +43,7 @@ async def create_task(body: CreateTaskRequest):
         check = await client.get(f"{TASKS_URL}/tasks/payment_id/{body.payment_id}")
         existing = check.json().get("tasks", [])
         if existing:
-            return existing[0]
+            return {**existing[0], "already_exists": True}
 
         # No task yet — create it
         task_res = await client.post(f"{TASKS_URL}/tasks", json={

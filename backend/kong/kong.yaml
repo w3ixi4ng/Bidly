@@ -48,7 +48,7 @@ services:
       - name: create-task-route
         paths:
           - /create-task
-          strip_path: false
+        strip_path: false
           
   - name: connect-chat-service
     url: http://connect-chat:8010
