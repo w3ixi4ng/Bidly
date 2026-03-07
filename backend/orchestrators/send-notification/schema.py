@@ -1,0 +1,14 @@
+from pydantic import BaseModel
+
+class AuctionEndNotification(BaseModel):
+    client_id: str
+    freelancer_id: str
+    task_title: str
+    task_description: str
+    amount: float
+
+class BidOutbidNotification(BaseModel):
+    task_id: str
+    old_freelancer_id: str
+    bid_price: float
+    
