@@ -19,15 +19,17 @@ bidly_queues = [
     {"name": "Create_Task", "routing_key": "create.task"},
 
     {"name": "Process_Winner", "routing_key": "process.winner"},
+    {"name": "End_Auction_WebSocket", "routing_key": "process.winner"},
+
     {"name": "End_Auction_Payment", "routing_key": "end.auction.payment"},
     {"name": "End_Auction_Chat", "routing_key": "end.auction.chat"},
     {"name": "End_Auction_Notifications", "routing_key": "end.auction.notifications"},
+    
     {"name": "Out_Bidded_WebSocket", "routing_key": "out.bidded.websocket"},
     {"name": "Out_Bidded_Notifications", "routing_key": "out.bidded.notifications"},
 
     {"name": "Task_Created_WebSocket", "routing_key": "task.created.websocket"},
     {"name": "New_Message_WebSocket", "routing_key": "new.message.websocket"}, # joshua added: for chat-log
-    {"name": "End_Auction_WebSocket", "routing_key": "process.winner"},
 ]
 
 
