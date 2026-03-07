@@ -1,5 +1,6 @@
 fastapi
 uvicorn
-supabase
 python-dotenv
 pydantic
+pydantic[email]
+sendgrid>=6.12.5
