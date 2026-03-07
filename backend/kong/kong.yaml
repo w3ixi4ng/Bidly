@@ -42,6 +42,14 @@ services:
           - /users
         strip_path: false
 
+  - name: connect-chat-service
+    url: http://connect-chat:8010
+    routes:
+      - name: connect-chat-route
+        paths:
+          - /connect-chat
+        strip_path: false
+
 plugins:
   - name: cors
     config:

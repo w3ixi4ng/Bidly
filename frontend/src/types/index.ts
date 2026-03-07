@@ -77,9 +77,8 @@ export interface Chat {
 }
 
 export interface ChatCreate {
-  task_id: string
-  client_id: string
-  freelancer_id: string
+  user_1_id: string
+  user_2_id: string
 }
 
 export interface Message {

@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMessages, sendMessage } from '../api/chatLogs'
 import { useAuthStore } from '../store/authStore'
 import ChatMessage from '../components/ChatMessage'
+import socket from '../api/socket'
+import type { Message } from '../types'
 
 export default function ChatRoom() {
   const { chat_id } = useParams<{ chat_id: string }>()
@@ -16,8 +18,30 @@ export default function ChatRoom() {
     queryKey: ['messages', chat_id],
     queryFn: () => getMessages(chat_id!),
     enabled: !!chat_id,
-    refetchInterval: 3000,
   })
+
+  // Connect to websocket and join chat room for real-time messages
+  useEffect(() => {
+    if (!chat_id) return
+
+    socket.connect()
+    socket.emit('join_chat', { chat_id })
+
+    const handleNewMessage = (data: Message & { chat_id: string }) => {
+      if (data.chat_id !== chat_id) return
+      queryClient.setQueryData<Message[]>(['messages', chat_id], (old) => [
+        ...(old ?? []),
+        { sender_id: data.sender_id, message: data.message, timestamp: null },
+      ])
+    }
+
+    socket.on('new_message', handleNewMessage)
+
+    return () => {
+      socket.off('new_message', handleNewMessage)
+      socket.disconnect()
+    }
+  }, [chat_id, queryClient])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -28,7 +52,6 @@ export default function ChatRoom() {
       sendMessage(chat_id!, { sender_id: user!.user_id, message: text.trim() }),
     onSuccess: () => {
       setText('')
-      queryClient.invalidateQueries({ queryKey: ['messages', chat_id] })
     },
   })
 

@@ -34,6 +34,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('join_user', (data) => {
+    const userId = data?.user_id;
+    if (userId) {
+      const room = `user_${userId}`;
+      socket.join(room);
+      console.log(`[join_user] ${socket.id} joined room ${room}`);
+      socket.emit('joined', { room });
+    } else {
+      socket.emit('error', { message: 'user_id is required' });
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`[disconnect] client disconnected: ${socket.id}`);
   });
@@ -88,6 +100,36 @@ async function consumeTaskCreated(channel) {
   });
 }
 
+async function consumeNewMessages(channel) {
+  await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
+  const q = await channel.assertQueue('New_Message_WebSocket', { durable: true });
+  await channel.bindQueue(q.queue, EXCHANGE_NAME, 'new.message.websocket');
+  channel.prefetch(10);
+
+  channel.consume(q.queue, (msg) => {
+    if (!msg) return;
+    try {
+      const data = JSON.parse(msg.content.toString());
+      const { recipient_id, sender_id, notify_sender } = data;
+      if (recipient_id) {
+        if (notify_sender && sender_id) {
+          io.to(`user_${sender_id}`).to(`user_${recipient_id}`).emit('new_message', data);
+          console.log(`[new_message] emitted to user_${sender_id} and user_${recipient_id}:`, data);
+        } else {
+          io.to(`user_${recipient_id}`).emit('new_message', data);
+          console.log(`[new_message] emitted to user_${recipient_id}:`, data);
+        }
+      } else {
+        console.log('[new_message] missing recipient_id in message:', data);
+      }
+      channel.ack(msg);
+    } catch (e) {
+      console.error('[new_message] error processing message:', e);
+      channel.nack(msg, false, false);
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
@@ -96,9 +138,11 @@ async function start() {
 
   const bidChannel = await connection.createChannel();
   const taskChannel = await connection.createChannel();
+  const chatChannel = await connection.createChannel();
 
   await consumeBidUpdates(bidChannel);
   await consumeTaskCreated(taskChannel);
+  await consumeNewMessages(chatChannel);
 
   console.log('RabbitMQ consumers started.');
 

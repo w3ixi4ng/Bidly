@@ -1,14 +1,19 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatCreate(BaseModel):
-    task_id: str
-    client_id: str
-    freelancer_id: str
+    user_1_id: str = Field(min_length=1)
+    user_2_id: str = Field(min_length=1)
 
 
 class ChatResponse(BaseModel):
     chat_id: str
+
+
+class ChatDetailResponse(BaseModel):
+    chat_id: str
+    user_1_id: str
+    user_2_id: str
 
 
 class ChatListResponse(BaseModel):

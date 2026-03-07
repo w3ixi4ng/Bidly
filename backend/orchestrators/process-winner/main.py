@@ -41,7 +41,7 @@ def process_winner(ch, method, properties, body):
     except Exception as e:
         print(f"Failed to process message: {e}")
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-    
+
 
 channel.basic_qos(prefetch_count=10)
 channel.basic_consume(queue="Process_Winner", on_message_callback=process_winner, auto_ack=False)
