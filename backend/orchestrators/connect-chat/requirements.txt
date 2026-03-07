@@ -1,0 +1,5 @@
+aio-pika
+httpx
+pydantic
+fastapi
+uvicorn

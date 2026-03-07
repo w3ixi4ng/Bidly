@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from schema import ChatCreate, ChatListResponse, ChatResponse
+from schema import ChatCreate, ChatDetailResponse, ChatListResponse, ChatResponse
 from supabase_service import SupabaseService
 import uvicorn
 
@@ -21,6 +21,14 @@ def create_chat(chat: ChatCreate):
     return ChatResponse(**created_chat[0])
 
 
+@app.get("/chats/{chat_id}", response_model=ChatDetailResponse, status_code=200)
+def get_chat_by_id(chat_id: str):
+    chat = supabase.get_chat_by_id(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return ChatDetailResponse(**chat[0])
+
+
 @app.get("/chats/user/{user_id}", response_model=ChatListResponse, status_code=200)
 def get_chats_by_user(user_id: str):
     chats = supabase.get_chats_by_user(user_id)
@@ -29,12 +37,12 @@ def get_chats_by_user(user_id: str):
     return ChatListResponse(chats=chats)
 
 
-@app.get("/chats/task/{task_id}", response_model=ChatResponse, status_code=200)
-def get_chat_by_task(task_id: str):
-    chat = supabase.get_chat_by_task(task_id)
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    return ChatResponse(**chat[0])
+# @app.get("/chats/task/{task_id}", response_model=ChatResponse, status_code=200)
+# def get_chat_by_task(task_id: str):
+#     chat = supabase.get_chat_by_task(task_id)
+#     if not chat:
+#         raise HTTPException(status_code=404, detail="Chat not found")
+#     return ChatResponse(**chat[0])
 
 
 if __name__ == "__main__":

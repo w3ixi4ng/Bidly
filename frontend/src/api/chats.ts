@@ -6,6 +6,3 @@ export const createChat = (data: ChatCreate) =>
 
 export const getChatsByUser = (user_id: string) =>
   client.get<{ chats: Chat[] }>(`/chats/user/${user_id}`).then((r) => r.data.chats)
-
-export const getChatByTask = (task_id: string) =>
-  client.get<Chat>(`/chats/task/${task_id}`).then((r) => r.data)

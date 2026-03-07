@@ -33,3 +33,8 @@ class SupabaseService:
     def delete_task(self, task_id: str):
         response = self.client.schema("tasks").from_("tasks").delete().eq("task_id", task_id).execute()
         return response.data
+    
+
+    def get_tasks_by_payment_id(self, payment_id: str):
+        response = self.client.schema("tasks").from_("tasks").select("*").eq("payment_id", payment_id).execute()
+        return response.data
