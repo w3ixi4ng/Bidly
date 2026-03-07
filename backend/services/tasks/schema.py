@@ -9,6 +9,7 @@ class TaskResponse(BaseModel):
     client_id: str
     freelancer_id: Optional[str] = None
     payment_id: str
+    starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
     auction_status: str
@@ -23,10 +24,10 @@ class TaskCreate(BaseModel):
     client_id: str
     freelancer_id: Optional[str] = None
     payment_id: str
+    starting_bid: float
     auction_status: Literal["pending", "in-progress", "completed", "cancelled"] = "pending"
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
-
 
 
 class TaskUpdate(BaseModel):
@@ -37,9 +38,3 @@ class TaskUpdate(BaseModel):
     auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids"]] = None
     auction_start_time: Optional[AwareDatetime] = None
     auction_end_time: Optional[AwareDatetime] = None
-
-
-
-
-
-

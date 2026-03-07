@@ -29,6 +29,12 @@ def create_task(task: TaskCreate):
     return TaskResponse(**created_task[0])
 
 
+@app.get("/tasks/payment_id/{payment_id}", response_model=TaskListResponse, status_code=200)
+def get_task_by_payment_id(payment_id: str):
+    tasks = supebase.get_task_by_payment_id(payment_id)
+    return TaskListResponse(tasks=tasks)
+
+
 @app.get("/tasks/{task_id}", response_model=TaskResponse, status_code=200)
 def get_task(task_id: str):
     task = supabase.get_task(task_id)
