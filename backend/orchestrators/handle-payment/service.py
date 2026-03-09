@@ -19,6 +19,13 @@ def get_payment_logs_by_payment_intent_id(payment_intent_id):
     else:
         raise Exception("Failed to retrieve payment details")
     
+def get_payment_logs_by_payment_id(payment_id):
+    response = requests.get(f"https://personal-yzh5fzm9.outsystemscloud.com/Payments/rest/OutPaymentsAPI/GetPaymentsByPaymentId?payment_id=eq.{payment_id}")
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception("Failed to retrieve payment log")
+
 def post_payment_log(payment_log_data):
     # Make a request to the payment service to create a new payment log
     response = requests.post("https://personal-yzh5fzm9.outsystemscloud.com/Payments/rest/OutPaymentsAPI/PostPayments", json=payment_log_data)
