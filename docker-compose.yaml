@@ -169,6 +169,13 @@ services:
         condition: service_completed_successfully
       tasks:
         condition: service_started
+  payment:
+    build: ./backend/services/payment
+    container_name: payment
+    ports:
+      - "8011:8011"
+    networks:
+      - bidly-net
   kong:
     image: kong:3.6
     container_name: kong

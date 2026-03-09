@@ -57,6 +57,14 @@ services:
         paths:
           - /connect-chat
         strip_path: false
+        
+  - name: payment-service
+    url: http://payment:8011
+    routes:
+      - name: payment-route
+        paths:
+          - /payment
+        strip_path: false
 
 plugins:
   - name: cors
