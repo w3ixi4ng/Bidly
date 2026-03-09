@@ -56,10 +56,8 @@ async def release_payment(payment_data: ReleasePaymentData):
                 raise HTTPException(status_code=400, detail="Freelancer does not have a Stripe connected account")
 
             # get payment intent id from payment log using payment_id
-            log_res = await client.get(f"/GetPaymentsByPaymentId?payment_id=eq.{payment_data.payment_id}")
-
-            log_res.raise_for_status()
-            payment_intent_id = log_res.json().get("payment_intent_id")
+            payment_log = service.get_payment_logs_by_payment_id(payment_data.payment_id)
+            payment_intent_id = payment_log.get("payment_intent_id")
 
             if not payment_intent_id:
                 raise HTTPException(status_code=404, detail="Payment log not found")
