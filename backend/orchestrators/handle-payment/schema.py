@@ -7,3 +7,8 @@ class StartPaymentData(BaseModel):
     starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
+
+class ReleasePaymentData(BaseModel):
+    payment_id: str
+    amount: float
+    client_id: str

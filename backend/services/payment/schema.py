@@ -1,7 +1,6 @@
 from pydantic import AwareDatetime, BaseModel
 
 class CapturePayment(BaseModel):
-    stripe_connected_account_id: str
     title: str
     description: str
     client_id: str

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
-from schema import StartPaymentData
+from schema import ReleasePaymentData, StartPaymentData
 import service
 import stripe
 from dotenv import load_dotenv, find_dotenv
@@ -10,21 +10,25 @@ TEMP_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 app = FastAPI()
 
-@app.post("/handle-payment")
-async def start_payment_before_create_task(payment_data: StartPaymentData):
-    # get user stripe account id from user_id
+@app.post("/handle-payment/capture")
+async def capture_payment(payment_data: StartPaymentData):
     try:
-        response = service.get_stripe_account_id(payment_data.client_id)
-        stripe_connected_account_id = response.get("stripe_connected_account_id")
-        if not stripe_connected_account_id:
-            raise HTTPException(status_code=400, detail="User does not have a connected Stripe account")
-        
-        # then call payment service to connect to stripe and create a payment intent and pass task as metadata
-        # payment svc has been created
+        # call payment service to connect to stripe and create a payment intent and pass task data as metadata
+        # payment svc has been created already
+        # return payment intent client secret to frontend to complete payment
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+
+@app.post("/handle-payment/release")
+async def release_payment(payment_data: ReleasePaymentData):
+    # get user stripe account id from user_id
+    # get payment intent id from payment log using payment_id
+    # call payment service to release payment to winner and refund remaining amount to client
+    # update payment log with payment status
 
 
+# TODO: post to paymentlogs, and publish rabbitmq message to create task when payment success webhook is received from stripe
 @app.post("/handle-payment/stripe/webhook")
 async def payment_success_web_hook(request: Request):
     # handle stripe webhook for payment success
@@ -42,6 +46,7 @@ async def payment_success_web_hook(request: Request):
     
     if event["type"] == "payment_intent.succeeded":
         # post to payment logs if payment_intent_id does not exist
+
         if not service.get_payment_logs_by_payment_intent_id("payment_intent_id"):
             # create payment log
             service.post_payment_log({
