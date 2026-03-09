@@ -70,6 +70,7 @@ services:
         condition: service_completed_successfully # ensure RabbitMQ setup is complete before starting bids service
       redis:
         condition: service_started 
+        
   users:
     build: ./backend/services/users
     container_name: users
@@ -119,6 +120,7 @@ services:
         condition: service_healthy # ensure RabbitMQ is up and healthy before starting setup
       rabbitmq-setup:
         condition: service_completed_successfully # service exits with code 0
+
   process-winner:
     build: ./backend/orchestrators/process-winner
     container_name: process-winner
@@ -145,6 +147,15 @@ services:
       rabbitmq-setup:
         condition: service_completed_successfully
 
+  handle-payment:
+    build: ./backend/orchestrators/handle-payment
+    container_name: handle-payment
+    restart: on-failure
+    ports:
+      - "8012:8012"
+    networks:
+      - bidly-net
+
   websocket:
     build: ./backend/websocket
     container_name: websocket
@@ -155,6 +166,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
   create-task:
     build: ./backend/orchestrators/create-task
     container_name: create-task
@@ -169,6 +181,7 @@ services:
         condition: service_completed_successfully
       tasks:
         condition: service_started
+
   payment:
     build: ./backend/services/payment
     container_name: payment
@@ -176,6 +189,7 @@ services:
       - "8011:8011"
     networks:
       - bidly-net
+
   kong:
     image: kong:3.6
     container_name: kong
