@@ -10,5 +10,6 @@ class StartPaymentData(BaseModel):
 
 class ReleasePaymentData(BaseModel):
     payment_id: str
+    freelancer_id: str
     amount: float
     client_id: str
