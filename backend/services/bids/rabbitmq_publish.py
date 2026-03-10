@@ -2,7 +2,7 @@ import json
 import pika
 
 
-def publish_out_bidded_message(task_id: str, bid_amount: float, previous_bidder_id: str = None):
+def publish_out_bidded_message(task_id: str, bid_amount: float, bidder_id: str, previous_bidder_id: str = None):
     connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
     channel = connection.channel()
     print("Publishing out bidded message to websocket...")
@@ -12,6 +12,7 @@ def publish_out_bidded_message(task_id: str, bid_amount: float, previous_bidder_
         body=json.dumps({
             "task_id": task_id,
             "bid_amount": bid_amount,
+            "bidder_id": bidder_id,
         }),
         properties=pika.BasicProperties(
             delivery_mode=2,  

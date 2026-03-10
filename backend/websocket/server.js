@@ -17,6 +17,11 @@ const io = new Server(httpServer, {
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 
 // ---------------------------------------------------------------------------
+// Presence tracking: socketId -> userId
+// ---------------------------------------------------------------------------
+const socketUserMap = new Map(); // socketId -> userId
+
+// ---------------------------------------------------------------------------
 // Socket.IO events
 // ---------------------------------------------------------------------------
 io.on('connection', (socket) => {
@@ -39,14 +44,27 @@ io.on('connection', (socket) => {
     if (userId) {
       const room = `user_${userId}`;
       socket.join(room);
+      socketUserMap.set(socket.id, userId);
       console.log(`[join_user] ${socket.id} joined room ${room}`);
       socket.emit('joined', { room });
+      // Broadcast presence to all connected clients
+      io.emit('user_online', { user_id: userId });
     } else {
       socket.emit('error', { message: 'user_id is required' });
     }
   });
 
   socket.on('disconnect', () => {
+    const userId = socketUserMap.get(socket.id);
+    socketUserMap.delete(socket.id);
+    if (userId) {
+      // Only mark offline if no other sockets for same user remain
+      const stillOnline = [...socketUserMap.values()].includes(userId);
+      if (!stillOnline) {
+        io.emit('user_offline', { user_id: userId });
+        console.log(`[presence] user_offline: ${userId}`);
+      }
+    }
     console.log(`[disconnect] client disconnected: ${socket.id}`);
   });
 });

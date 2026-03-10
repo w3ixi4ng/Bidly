@@ -9,6 +9,8 @@ class SupabaseAuthService:
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_KEY")
         self.client: Client = create_client(self.url, self.key)
+        service_key = os.getenv("SUPABASE_SERVICE_KEY", self.key)
+        self.admin_client: Client = create_client(self.url, service_key)
     
     
     def signup_user(self, email: str, password: str, name: Optional[str] = None):
@@ -43,17 +45,17 @@ class SupabaseAuthService:
     
     
     def get_user_profile(self, user_id: str):
-        response = self.client.schema("users").from_("users").select("*").eq("user_id", user_id).execute()
+        response = self.admin_client.schema("users").from_("users").select("*").eq("user_id", user_id).execute()
         if not response.data:
             return None
         return response.data[0]
     
 
     def update_user_profile(self, user_id: str, profile_data: dict):
-        response = self.client.schema("users").from_("users").update(profile_data).eq("user_id", user_id).execute()
+        response = self.admin_client.schema("users").from_("users").update(profile_data).eq("user_id", user_id).execute()
         return response.data
     
     
     def get_all_users(self):
-        response = self.client.schema("users").from_("users").select("*").execute()
+        response = self.admin_client.schema("users").from_("users").select("*").execute()
         return response.data

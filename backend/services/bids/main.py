@@ -55,7 +55,7 @@ def create_bid(bid: BidCreate):
     if not created_bid:
         raise HTTPException(status_code=400, detail="Failed to create bid")
     else:
-        rabbitmq_publish.publish_out_bidded_message(bid.task_id, bid.bid_amount, prev_bidder["bidder_id"] if prev_bidder else None)
+        rabbitmq_publish.publish_out_bidded_message(bid.task_id, bid.bid_amount, bid.bidder_id, prev_bidder["bidder_id"] if prev_bidder else None)
     return BidResponse(**created_bid[0])
 
 
