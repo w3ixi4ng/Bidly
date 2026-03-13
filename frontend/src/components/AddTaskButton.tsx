@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { useUIStore } from '../store/uiStore';
+import { StripePreloadContext } from '../App';
 
 const AddTaskButton: React.FC = () => {
   const { setAddTaskModalOpen } = useUIStore();
+  const { preload: preloadStripe } = useContext(StripePreloadContext);
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -21,8 +23,8 @@ const AddTaskButton: React.FC = () => {
     >
       {/* Circle button — always perfectly round, never resizes */}
       <button
-        onClick={() => setAddTaskModalOpen(true)}
-        onMouseEnter={() => setHovered(true)}
+        onClick={() => { preloadStripe(); setAddTaskModalOpen(true); }}
+        onMouseEnter={() => { setHovered(true); preloadStripe(); }}
         onMouseLeave={() => setHovered(false)}
         aria-label="Add new task"
         style={{
@@ -38,9 +40,6 @@ const AddTaskButton: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          fontSize: 26,
-          fontWeight: 300,
-          lineHeight: 1,
           // Use box-shadow instead of transform to avoid bounding box changes
           boxShadow: hovered
             ? '0 6px 28px rgba(99,102,241,0.6)'
@@ -48,7 +47,9 @@ const AddTaskButton: React.FC = () => {
           transition: 'box-shadow 0.2s ease',
         }}
       >
-        +
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
       </button>
 
       {/* Label — appears to the right, pointer-events none so it can't interfere */}

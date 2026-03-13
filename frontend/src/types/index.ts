@@ -5,10 +5,14 @@ export interface User {
   stripe_connected_account_id: string | null;
 }
 
+export type TaskCategory = 'Design' | 'Development' | 'Writing' | 'Marketing' | 'Other';
+
 export interface Task {
   task_id: string;
   title: string;
   description: string;
+  requirements: string[];
+  category: TaskCategory;
   client_id: string;
   freelancer_id: string | null;
   payment_id: string;

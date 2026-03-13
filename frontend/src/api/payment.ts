@@ -1,8 +1,10 @@
 import { apiClient } from './client';
+import type { TaskCategory } from '../types';
 
 export interface CapturePaymentPayload {
   title: string;
   description: string;
+  category: TaskCategory;
   client_id: string;
   starting_bid: number;
   auction_start_time: string;

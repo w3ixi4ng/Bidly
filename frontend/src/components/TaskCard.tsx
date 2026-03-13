@@ -18,9 +18,12 @@ function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'med
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
   if (days > 0) return { text: `${days}d ${hours}h left`, urgency: 'low' };
   if (hours > 2) return { text: `${hours}h ${mins}m left`, urgency: 'medium' };
-  return { text: hours > 0 ? `${hours}h ${mins}m left` : `${mins}m left`, urgency: 'high' };
+  if (hours > 0) return { text: `${hours}h ${mins}m left`, urgency: 'high' };
+  if (mins > 0) return { text: `${mins}m ${secs}s left`, urgency: 'high' };
+  return { text: `${secs}s left`, urgency: 'high' };
 }
 
 const TaskCardSkeleton: React.FC = () => (
@@ -51,13 +54,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
 
   useEffect(() => {
     if (!task) return;
-    const interval = setInterval(() => setTick(t => t + 1), 30000);
+    const remaining = new Date(task.auction_end_time).getTime() - Date.now();
+    // Tick every second when under 2 minutes, otherwise every 30s
+    const ms = remaining > 0 && remaining < 120000 ? 1000 : 30000;
+    const interval = setInterval(() => setTick(t => t + 1), ms);
     return () => clearInterval(interval);
   }, [task]);
 
   if (!task) return <TaskCardSkeleton />;
 
-  const hasBid = currentBid?.bid_amount != null;
+  const hasBid = currentBid?.bid_amount != null && currentBid?.bidder_id != null;
   const displayBid = hasBid
     ? `$${(currentBid!.bid_amount as number).toFixed(2)}`
     : `$${task.starting_bid.toFixed(2)}`;

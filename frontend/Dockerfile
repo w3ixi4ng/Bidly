@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -6,7 +6,16 @@ COPY package.json package-lock.json* ./
 RUN npm ci --prefer-offline
 
 COPY . .
+RUN npm run build
 
-EXPOSE 5173
+FROM node:20-alpine
 
-CMD ["npm", "run", "dev"]
+WORKDIR /app
+
+RUN npm install -g serve
+
+COPY --from=build /app/dist ./dist
+
+EXPOSE 3000
+
+CMD ["serve", "-s", "dist", "-l", "3000"]

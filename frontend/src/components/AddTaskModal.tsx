@@ -10,12 +10,16 @@ import { capturePayment } from '../api/payment';
 import { createTask } from '../api/tasks';
 import { useTaskStore } from '../store/taskStore';
 import Skeleton from './Skeleton';
+import type { TaskCategory } from '../types';
 
 type Step = 'form' | 'payment' | 'confirming' | 'creating' | 'done';
+
+const TASK_CATEGORIES: TaskCategory[] = ['Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
 interface FormData {
   title: string;
   description: string;
+  category: TaskCategory;
   startNow: boolean;
   auction_start_time: string;
   auction_end_time: string;
@@ -39,6 +43,10 @@ const AddTaskModal: React.FC = () => {
   const [clientSecret, setClientSecret] = useState('');
   const [error, setError] = useState('');
   const [formErrors, setFormErrors] = useState<Partial<FormData>>({});
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [reqInput, setReqInput] = useState('');
+  const [submittingNext, setSubmittingNext] = useState(false);
+  const [submittingPay, setSubmittingPay] = useState(false);
 
   const now = new Date();
   const oneHourLater = new Date(now.getTime() + 3600000);
@@ -46,6 +54,7 @@ const AddTaskModal: React.FC = () => {
   const [form, setForm] = useState<FormData>({
     title: '',
     description: '',
+    category: 'Other',
     startNow: true,
     auction_start_time: formatForInput(now),
     auction_end_time: formatForInput(oneHourLater),
@@ -73,6 +82,8 @@ const AddTaskModal: React.FC = () => {
       errors.starting_bid = 'Starting bid must be at least $1.';
     if (!form.startNow && !form.auction_start_time)
       errors.auction_start_time = 'Start time is required.';
+    if (!form.startNow && form.auction_start_time && new Date(form.auction_start_time) < new Date())
+      errors.auction_start_time = 'Start time cannot be in the past.';
     if (!form.auction_end_time) errors.auction_end_time = 'End time is required.';
     const start = form.startNow ? new Date() : new Date(form.auction_start_time);
     const end = new Date(form.auction_end_time);
@@ -84,6 +95,7 @@ const AddTaskModal: React.FC = () => {
   const handleNext = async () => {
     if (!validateForm()) return;
     setError('');
+    setSubmittingNext(true);
     try {
       const startTime = form.startNow
         ? new Date().toISOString()
@@ -92,6 +104,7 @@ const AddTaskModal: React.FC = () => {
       const result = await capturePayment({
         title: form.title.trim(),
         description: form.description.trim(),
+        category: form.category,
         client_id: user!.user_id,
         starting_bid: Number(form.starting_bid),
         auction_start_time: startTime,
@@ -101,6 +114,8 @@ const AddTaskModal: React.FC = () => {
       setStep('payment');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initiate payment.');
+    } finally {
+      setSubmittingNext(false);
     }
   };
 
@@ -115,10 +130,11 @@ const AddTaskModal: React.FC = () => {
       return;
     }
 
-    setStep('confirming');
     setError('');
+    setSubmittingPay(true);
 
     try {
+      // Confirm payment BEFORE changing step, so CardElement stays mounted
       const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         { payment_method: { card: cardElement } }
@@ -126,9 +142,10 @@ const AddTaskModal: React.FC = () => {
 
       if (stripeErr) {
         setError(stripeErr.message ?? 'Payment failed.');
-        setStep('payment');
         return;
       }
+
+      setStep('confirming');
 
       if (paymentIntent?.status !== 'succeeded') {
         setError('Payment was not successful. Please try again.');
@@ -146,6 +163,8 @@ const AddTaskModal: React.FC = () => {
       const task = await createTask({
         title: form.title.trim(),
         description: form.description.trim(),
+        requirements,
+        category: form.category,
         client_id: user!.user_id,
         payment_id: paymentIntent.id,
         starting_bid: Number(form.starting_bid),
@@ -153,11 +172,18 @@ const AddTaskModal: React.FC = () => {
         auction_end_time: endTime,
       });
 
+      // Optimistically mark as in-progress if auction start is now or in the past
+      const startDate = new Date(task.auction_start_time);
+      if (startDate <= new Date()) {
+        task.auction_status = 'in-progress';
+      }
       upsertTask(task);
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task.');
       setStep('payment');
+    } finally {
+      setSubmittingPay(false);
     }
   };
 
@@ -226,6 +252,109 @@ const AddTaskModal: React.FC = () => {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Requirements</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="form-input"
+                  value={reqInput}
+                  onChange={(e) => setReqInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = reqInput.trim();
+                      if (trimmed && !requirements.includes(trimmed)) {
+                        setRequirements((prev) => [...prev, trimmed]);
+                        setReqInput('');
+                      }
+                    }
+                  }}
+                  placeholder="e.g. Must be responsive"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    const trimmed = reqInput.trim();
+                    if (trimmed && !requirements.includes(trimmed)) {
+                      setRequirements((prev) => [...prev, trimmed]);
+                      setReqInput('');
+                    }
+                  }}
+                  style={{ padding: '8px 14px', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
+                >
+                  +
+                </button>
+              </div>
+              {requirements.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                  {requirements.map((req, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                        background: 'var(--text-secondary)',
+                        marginTop: 4,
+                      }} />
+                      <span style={{ flex: 1, color: 'var(--text-primary)' }}>{req}</span>
+                      <button
+                        type="button"
+                        onClick={() => setRequirements((prev) => prev.filter((_, j) => j !== i))}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: 'var(--text-secondary)', padding: 2, fontSize: 14, lineHeight: 1,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Category *</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  className="form-input"
+                  value={form.category}
+                  onChange={(e) => updateField('category', e.target.value as TaskCategory)}
+                  style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    cursor: 'pointer',
+                    paddingRight: 36,
+                  }}
+                >
+                  {TASK_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <svg
+                  width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+                  style={{
+                    position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--text-secondary)', pointerEvents: 'none',
+                  }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Starting Amount ($) *</label>
               <input
                 className="form-input"
@@ -289,8 +418,13 @@ const AddTaskModal: React.FC = () => {
 
             {error && <span className="error-msg">{error}</span>}
 
-            <button className="btn btn-primary" onClick={handleNext} style={{ width: '100%' }}>
-              Next →
+            <button
+              className="btn btn-primary"
+              onClick={handleNext}
+              disabled={submittingNext}
+              style={{ width: '100%', opacity: submittingNext ? 0.7 : 1 }}
+            >
+              {submittingNext ? 'Processing...' : 'Next →'}
             </button>
           </div>
         )}
@@ -328,6 +462,7 @@ const AddTaskModal: React.FC = () => {
               <button
                 className="btn btn-secondary"
                 onClick={() => setStep('form')}
+                disabled={submittingPay}
                 style={{ flex: 1 }}
               >
                 ← Back
@@ -335,10 +470,10 @@ const AddTaskModal: React.FC = () => {
               <button
                 className="btn btn-primary"
                 onClick={handlePayAndCreate}
-                disabled={!stripe}
-                style={{ flex: 2 }}
+                disabled={!stripe || submittingPay}
+                style={{ flex: 2, opacity: submittingPay ? 0.7 : 1 }}
               >
-                Pay & Create Task
+                {submittingPay ? 'Processing payment...' : 'Pay & Create Task'}
               </button>
             </div>
           </div>

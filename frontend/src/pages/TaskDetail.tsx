@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { getCurrentBid, placeBid } from '../api/bids';
 import { getUser } from '../api/users';
+import { getTasks } from '../api/tasks';
 import { joinAuctionRoom } from '../socket/socket';
 import Navbar from '../components/Navbar';
 import ProfileModal from '../components/ProfileModal';
@@ -53,7 +54,7 @@ function getStatusBadgeStyle(status: Task['auction_status']): React.CSSPropertie
 const TaskDetail: React.FC = () => {
   const { taskSlug } = useParams<{ taskSlug: string }>();
   const navigate = useNavigate();
-  const { tasks, currentBids, setCurrentBid, markAuctionEnded } = useTaskStore();
+  const { tasks, setTasks, currentBids, setCurrentBid, markAuctionEnded } = useTaskStore();
   const { user } = useAuthStore();
   const { profileModalOpen, addTaskModalOpen } = useUIStore();
 
@@ -76,13 +77,18 @@ const TaskDetail: React.FC = () => {
     }
   }, [task]);
 
+  // If task isn't in store, fetch tasks immediately instead of waiting
+  useEffect(() => {
+    if (task || tasks.length > 0) return;
+    getTasks()
+      .then(setTasks)
+      .catch(() => {})
+      .finally(() => setLoadingTask(false));
+  }, [task, tasks.length, setTasks]);
+
   // Join auction room and fetch current bid
   useEffect(() => {
-    if (!task) {
-      // Try waiting briefly for tasks to load
-      const t = setTimeout(() => setLoadingTask(false), 2000);
-      return () => clearTimeout(t);
-    }
+    if (!task) return;
     setLoadingTask(false);
 
     joinAuctionRoom(task.task_id);
@@ -94,15 +100,19 @@ const TaskDetail: React.FC = () => {
     }
   }, [task?.task_id, currentBids, setCurrentBid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch client name
+  // Fetch client name — skip API call if the poster is the logged-in user
   useEffect(() => {
     if (!task?.client_id) return;
+    if (task.client_id === user?.user_id && user?.name) {
+      setClientName(user.name);
+      return;
+    }
     setLoadingClient(true);
     getUser(task.client_id)
       .then((u) => setClientName(u.name ?? u.email))
       .catch(() => setClientName(task.client_id))
       .finally(() => setLoadingClient(false));
-  }, [task?.client_id]);
+  }, [task?.client_id, user?.user_id, user?.name]);
 
   // Listen for auction ended via store change
   useEffect(() => {
@@ -234,6 +244,9 @@ const TaskDetail: React.FC = () => {
                 border: '1px solid var(--border)',
               }}
             >
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Description
+              </div>
               <p
                 style={{
                   color: 'var(--text-secondary)',
@@ -245,6 +258,49 @@ const TaskDetail: React.FC = () => {
                 {task.description}
               </p>
             </div>
+
+            {/* Requirements checklist */}
+            {task.requirements && task.requirements.length > 0 && (
+              <div
+                style={{
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '20px',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Requirements
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {task.requirements.map((req, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 12,
+                        fontSize: 14,
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          background: 'var(--text-secondary)',
+                          flexShrink: 0,
+                          marginTop: 8,
+                        }}
+                      />
+                      <span>{req}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Meta */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -310,11 +366,11 @@ const TaskDetail: React.FC = () => {
                   Current Bid
                 </div>
                 <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>
-                  {currentBid?.bid_amount != null
+                  {currentBid?.bid_amount != null && currentBid?.bidder_id != null
                     ? `$${currentBid.bid_amount.toFixed(2)}`
                     : 'No bids yet'}
                 </div>
-                {currentBid?.bid_amount == null && (
+                {(currentBid?.bidder_id == null) && (
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
                     Starting at ${task.starting_bid.toFixed(2)}
                   </div>

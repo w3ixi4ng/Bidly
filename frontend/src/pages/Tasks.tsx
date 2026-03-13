@@ -105,11 +105,13 @@ const Tasks: React.FC = () => {
     return () => ctx.revert();
   }, [loading, activeCategory, sortBy, searchQuery]);
 
-  const activeTasks = tasks.filter(t => t.auction_status === 'in-progress');
+  const activeTasks = tasks.filter(t => t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now());
 
   const filteredTasks = activeTasks.filter(task => {
     const q = searchQuery.toLowerCase();
-    return task.title.toLowerCase().includes(q) || task.description.toLowerCase().includes(q);
+    const matchesSearch = task.title.toLowerCase().includes(q) || task.description.toLowerCase().includes(q);
+    const matchesCategory = activeCategory === 'All' || task.category === activeCategory;
+    return matchesSearch && matchesCategory;
   });
 
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -126,7 +128,7 @@ const Tasks: React.FC = () => {
   });
 
   const liveCount = activeTasks.length;
-  const withBids = activeTasks.filter(t => currentBids[t.task_id]?.bid_amount != null).length;
+  const withBids = activeTasks.filter(t => currentBids[t.task_id]?.bid_amount != null && currentBids[t.task_id]?.bidder_id != null).length;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', transition: 'background 0.3s ease' }}>
@@ -323,8 +325,8 @@ const Tasks: React.FC = () => {
           </div>
         )}
 
-        {/* Skeleton loading */}
-        {loading && (
+        {/* Skeleton loading — only when no cached tasks */}
+        {loading && tasks.length === 0 && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -337,7 +339,7 @@ const Tasks: React.FC = () => {
         )}
 
         {/* Task grid */}
-        {!loading && sortedTasks.length > 0 && (
+        {sortedTasks.length > 0 && (
           <>
             {/* Result count */}
             <div style={{
