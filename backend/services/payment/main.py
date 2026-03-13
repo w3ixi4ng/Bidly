@@ -50,12 +50,7 @@ def capture_payment_intent(payment_data: CapturePayment):
         currency="sgd",
         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
         metadata={
-            "client_id": payment_data.client_id,
-            "title": payment_data.title,
-            "description": payment_data.description,
-            "auction_start_time": payment_data.auction_start_time.isoformat(),
-            "auction_end_time": payment_data.auction_end_time.isoformat(),
-            "starting_bid": payment_data.starting_bid,
+            **{k: str(v) for k, v in payment_data.model_dump(mode='json').items()},
             "auction_status": "pending"
         }
     )
