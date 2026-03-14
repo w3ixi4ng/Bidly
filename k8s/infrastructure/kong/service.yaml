@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong
+  namespace: bidly
+spec:
+  selector:
+    app: kong
+  ports:
+    - name: proxy
+      port: 8000
+      targetPort: 8000
+    - name: admin
+      port: 8001
+      targetPort: 8001
+    - name: proxy-ssl
+      port: 8443
+      targetPort: 8443

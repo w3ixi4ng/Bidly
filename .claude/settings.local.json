@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i 's|image: w3ixi4ng/tasks:latest|image: w3ixi4ng/bidly:tasks|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/chats:latest|image: w3ixi4ng/bidly:chats|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/chat-logs:latest|image: w3ixi4ng/bidly:chat-logs|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/bids:latest|image: w3ixi4ng/bidly:bids|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/users:latest|image: w3ixi4ng/bidly:users|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/rabbitmq-setup:latest|image: w3ixi4ng/bidly:rabbitmq-setup|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/start-auction:latest|image: w3ixi4ng/bidly:start-auction|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/process-winner:latest|image: w3ixi4ng/bidly:process-winner|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/connect-chat:latest|image: w3ixi4ng/bidly:connect-chat|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/handle-payment:latest|image: w3ixi4ng/bidly:handle-payment|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/websocket:latest|image: w3ixi4ng/bidly:websocket|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/create-task:latest|image: w3ixi4ng/bidly:create-task|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/payment:latest|image: w3ixi4ng/bidly:payment|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/notifications:latest|image: w3ixi4ng/bidly:notifications|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/send-notifications:latest|image: w3ixi4ng/bidly:send-notifications|g' \"c:/Users/weixi/OneDrive/Documents/GitHub/Bidly/docker-compose.yaml\")",
+      "Bash(sed -i 's|image: w3ixi4ng/frontend:latest|image: w3ixi4ng/bidly:frontend|g' \"c:/Users/weixi/OneDrive/Documents/GitHub\\\\Bidly/docker-compose.yaml\")"
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-logs
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat-logs
+  template:
+    metadata:
+      labels:
+        app: chat-logs
+    spec:
+      containers:
+        - name: chat-logs
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chat-logs:latest
+          ports:
+            - containerPort: 8002
+          envFrom:
+            - secretRef:
+                name: firebase-secret

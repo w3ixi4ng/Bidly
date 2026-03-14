@@ -11,7 +11,7 @@ networks:
 
 services:
   tasks:
-    image: bidly/tasks:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/tasks:latest
     build: ./backend/services/tasks
     container_name: tasks
     ports:
@@ -22,7 +22,7 @@ services:
       - .env.supabase
 
   chats:
-    image: bidly/chats:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chats:latest
     build: ./backend/services/chats
     container_name: chats
     ports:
@@ -33,7 +33,7 @@ services:
       - .env.supabase
 
   chat-logs:
-    image: bidly/chat-logs:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chat-logs:latest
     build: ./backend/services/chat-logs
     container_name: chat-logs
     ports:
@@ -58,7 +58,7 @@ services:
       - --dir /data
 
   bids:
-    image: bidly/bids:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/bids:latest
     build: ./backend/services/bids
     container_name: bids
     ports:
@@ -76,7 +76,7 @@ services:
         condition: service_started 
         
   users:
-    image: bidly/users:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/users:latest
     build: ./backend/services/users
     container_name: users
     ports:
@@ -105,7 +105,7 @@ services:
       start_period: 30s
 
   rabbitmq-setup:
-    image: bidly/rabbitmq-setup:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/rabbitmq-setup:latest
     build: ./backend/rabbitmq
     container_name: rabbitmq-setup
     restart: on-failure
@@ -116,7 +116,7 @@ services:
       - bidly-net
 
   start-auction:
-    image: bidly/start-auction:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/start-auction:latest
     build: ./backend/orchestrators/start-auction
     container_name: start-auction
     restart: on-failure
@@ -129,7 +129,7 @@ services:
         condition: service_completed_successfully # service exits with code 0
 
   process-winner:
-    image: bidly/process-winner:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/process-winner:latest
     build: ./backend/orchestrators/process-winner
     container_name: process-winner
     restart: on-failure
@@ -142,7 +142,7 @@ services:
         condition: service_completed_successfully
 
   connect-chat:
-    image: bidly/connect-chat:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/connect-chat:latest
     build: ./backend/orchestrators/connect-chat
     container_name: connect-chat
     restart: on-failure
@@ -157,7 +157,7 @@ services:
         condition: service_completed_successfully
 
   handle-payment:
-    image: bidly/handle-payment:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/handle-payment:latest
     build: ./backend/orchestrators/handle-payment
     container_name: handle-payment
     restart: on-failure
@@ -167,7 +167,7 @@ services:
       - bidly-net
 
   websocket:
-    image: bidly/websocket:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/websocket:latest
     build: ./backend/websocket
     container_name: websocket
     ports:
@@ -179,7 +179,7 @@ services:
         condition: service_healthy
 
   create-task:
-    image: bidly/create-task:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/create-task:latest
     build: ./backend/orchestrators/create-task
     container_name: create-task
     ports:
@@ -195,7 +195,7 @@ services:
         condition: service_started
 
   payment:
-    image: bidly/payment:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/payment:latest
     build: ./backend/services/payment
     container_name: payment
     ports:
@@ -212,7 +212,7 @@ services:
       connect-chat:
         condition: service_started 
   notifications:
-    image: bidly/notifications:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/notifications:latest
     build: ./backend/services/notifications
     container_name: notifications
     ports:
@@ -220,7 +220,7 @@ services:
     networks:
       - bidly-net
   send-notifications:
-    image: bidly/send-notifications:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/send-notifications:latest
     build: ./backend/orchestrators/send-notification
     container_name: send-notification
     networks:
@@ -262,7 +262,7 @@ services:
       - connect-chat
 
   frontend:
-    image: bidly/frontend:latest
+    image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/frontend:latest
     build: ./frontend
     container_name: frontend
     ports:
