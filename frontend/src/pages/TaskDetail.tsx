@@ -4,13 +4,17 @@ import { useTaskStore } from '../store/taskStore';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { getCurrentBid, placeBid } from '../api/bids';
+import { createChat, getUserChats } from '../api/chats';
+import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
 import { getTasks } from '../api/tasks';
-import { joinAuctionRoom } from '../socket/socket';
+import { useChatStore } from '../store/chatStore';
+import { connectSocket, joinAuctionRoom } from '../socket/socket';
 import Navbar from '../components/Navbar';
 import ProfileModal from '../components/ProfileModal';
 import AddTaskModal from '../components/AddTaskModal';
 import ChatPanel from '../components/ChatPanel';
+import AuthModal from '../components/AuthModal';
 import Skeleton from '../components/Skeleton';
 import type { Task } from '../types';
 
@@ -54,9 +58,10 @@ function getStatusBadgeStyle(status: Task['auction_status']): React.CSSPropertie
 const TaskDetail: React.FC = () => {
   const { taskSlug } = useParams<{ taskSlug: string }>();
   const navigate = useNavigate();
-  const { tasks, setTasks, currentBids, setCurrentBid, markAuctionEnded } = useTaskStore();
+  const { tasks, setTasks, currentBids, setCurrentBid } = useTaskStore();
   const { user } = useAuthStore();
-  const { profileModalOpen, addTaskModalOpen } = useUIStore();
+  const { profileModalOpen, addTaskModalOpen, authModalOpen, setAuthModalOpen } = useUIStore();
+  const { chats, setChats, upsertChat, setActiveChat, setMessages } = useChatStore();
 
   const [loadingTask, setLoadingTask] = useState(true);
   const [clientName, setClientName] = useState<string | null>(null);
@@ -65,6 +70,7 @@ const TaskDetail: React.FC = () => {
   const [bidLoading, setBidLoading] = useState(false);
   const [bidError, setBidError] = useState('');
   const [auctionClosed, setAuctionClosed] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const task = tasks.find((t) => toSlug(t.title) === taskSlug);
   const currentBid = task ? currentBids[task.task_id] : undefined;
@@ -76,6 +82,25 @@ const TaskDetail: React.FC = () => {
       setAuctionClosed(true);
     }
   }, [task]);
+
+  // Bootstrap websocket + chats if arriving directly on this page
+  useEffect(() => {
+    if (!user?.user_id) return;
+    connectSocket(user.user_id);
+    getUserChats(user.user_id)
+      .then((chatsData) => {
+        setChats(chatsData);
+        chatsData.forEach((c) => upsertChat(c));
+        return Promise.allSettled(
+          chatsData.map((c) =>
+            getChatMessages(c.chat_id).then((msgs) => {
+              if (msgs.length > 0) setMessages(c.chat_id, msgs);
+            })
+          )
+        );
+      })
+      .catch(() => {});
+  }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If task isn't in store, fetch tasks immediately instead of waiting
   useEffect(() => {
@@ -125,14 +150,30 @@ const TaskDetail: React.FC = () => {
     const amount = Number(bidInput);
     if (!bidInput || isNaN(amount)) return 'Please enter a valid bid amount.';
     if (amount <= 0) return 'Bid must be greater than zero.';
-    const ceiling = currentBid?.bid_amount != null ? currentBid.bid_amount : (task?.starting_bid ?? 0);
-    if (amount >= ceiling) {
-      return `Bid must be lower than ${currentBid?.bid_amount != null ? `current bid of $${ceiling.toFixed(2)}` : `starting bid of $${ceiling.toFixed(2)}`}.`;
+    const hasBids = currentBid?.bid_amount != null && currentBid?.bidder_id != null;
+    const ceiling = hasBids ? currentBid.bid_amount! : (task?.starting_bid ?? 0);
+    if (hasBids) {
+      if (amount >= ceiling) {
+        return `Bid must be lower than current bid of $${ceiling.toFixed(2)}.`;
+      }
+    } else {
+      if (amount > ceiling) {
+        return `Bid must be at or below the starting bid of $${ceiling.toFixed(2)}.`;
+      }
     }
     return '';
   }, [bidInput, currentBid, task]);
 
+  const requireAuth = () => {
+    if (!user) {
+      setAuthModalOpen(true);
+      return true;
+    }
+    return false;
+  };
+
   const handlePlaceBid = async () => {
+    if (requireAuth()) return;
     const errMsg = validateBid();
     if (errMsg) {
       setBidError(errMsg);
@@ -161,6 +202,34 @@ const TaskDetail: React.FC = () => {
   const isWinning =
     currentBid?.bidder_id != null && user != null && currentBid.bidder_id === user.user_id;
   const isOwner = task?.client_id === user?.user_id;
+
+  const handleMessageClient = async () => {
+    if (requireAuth()) return;
+    if (!task || !user) return;
+    const clientId = task.client_id;
+
+    const existing = chats.find(
+      (c) =>
+        (c.user_1_id === user.user_id && c.user_2_id === clientId) ||
+        (c.user_1_id === clientId && c.user_2_id === user.user_id)
+    );
+
+    if (existing) {
+      setActiveChat(existing.chat_id);
+      return;
+    }
+
+    setChatLoading(true);
+    try {
+      const chat = await createChat(user.user_id, clientId);
+      upsertChat(chat);
+      setActiveChat(chat.chat_id);
+    } catch {
+      /* silently fail */
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   if (loadingTask || !task) {
     return (
@@ -344,6 +413,18 @@ const TaskDetail: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            {/* Message Client button */}
+            {!isOwner && (
+              <button
+                className="btn btn-primary"
+                onClick={handleMessageClient}
+                disabled={chatLoading}
+                style={{ alignSelf: 'flex-start', padding: '10px 20px' }}
+              >
+                {chatLoading ? <span className="spinner" /> : 'Message Client'}
+              </button>
+            )}
           </div>
 
           {/* Right column — Bid Panel */}
@@ -414,6 +495,19 @@ const TaskDetail: React.FC = () => {
                     This auction has ended.
                   </div>
                 </div>
+              ) : !user ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.6 }}>
+                    Log in or sign up to place a bid on this task.
+                  </p>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setAuthModalOpen(true)}
+                    style={{ width: '100%', padding: '12px' }}
+                  >
+                    Log In to Bid
+                  </button>
+                </div>
               ) : isOwner ? (
                 <div
                   style={{
@@ -435,18 +529,20 @@ const TaskDetail: React.FC = () => {
                     <label className="form-label">Your Bid ($)</label>
                     <input
                       className="form-input"
-                      type="number"
-                      min={1}
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={bidInput}
                       onChange={(e) => {
-                        setBidInput(e.target.value);
-                        setBidError('');
+                        const val = e.target.value;
+                        if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                          setBidInput(val);
+                          setBidError('');
+                        }
                       }}
                       placeholder={
-                        currentBid?.bid_amount != null
+                        currentBid?.bid_amount != null && currentBid?.bidder_id != null
                           ? `Less than $${currentBid.bid_amount.toFixed(2)}`
-                          : `Less than $${task.starting_bid.toFixed(2)}`
+                          : `At or below $${task.starting_bid.toFixed(2)}`
                       }
                       disabled={bidLoading}
                       onKeyDown={(e) => e.key === 'Enter' && handlePlaceBid()}
@@ -473,9 +569,10 @@ const TaskDetail: React.FC = () => {
         </div>
       </div>
 
-      {profileModalOpen && <ProfileModal />}
-      {addTaskModalOpen && <AddTaskModal />}
-      <ChatPanel />
+      {user && profileModalOpen && <ProfileModal />}
+      {user && addTaskModalOpen && <AddTaskModal />}
+      {user && <ChatPanel />}
+      {authModalOpen && <AuthModal />}
     </div>
   );
 };

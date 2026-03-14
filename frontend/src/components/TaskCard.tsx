@@ -15,14 +15,17 @@ function toSlug(title: string): string {
 function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'medium' | 'high' } {
   const diff = new Date(endTime).getTime() - Date.now();
   if (diff <= 0) return { text: 'Ended', urgency: 'high' };
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor((diff % 86400000) / 3600000);
+  const totalHours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   const secs = Math.floor((diff % 60000) / 1000);
-  if (days > 0) return { text: `${days}d ${hours}h left`, urgency: 'low' };
-  if (hours > 2) return { text: `${hours}h ${mins}m left`, urgency: 'medium' };
-  if (hours > 0) return { text: `${hours}h ${mins}m left`, urgency: 'high' };
-  if (mins > 0) return { text: `${mins}m ${secs}s left`, urgency: 'high' };
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const remainingHours = totalHours % 24;
+    return { text: `${days}d ${remainingHours}h left`, urgency: 'low' };
+  }
+  if (totalHours > 2) return { text: `${totalHours}h ${mins}m left`, urgency: 'medium' };
+  if (totalHours > 0) return { text: `${totalHours}h ${mins}m left`, urgency: 'high' };
+  if (mins > 0) return { text: `${mins}m left`, urgency: 'high' };
   return { text: `${secs}s left`, urgency: 'high' };
 }
 
@@ -55,9 +58,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
   useEffect(() => {
     if (!task) return;
     const remaining = new Date(task.auction_end_time).getTime() - Date.now();
-    // Tick every second when under 2 minutes, otherwise every 30s
-    const ms = remaining > 0 && remaining < 120000 ? 1000 : 30000;
-    const interval = setInterval(() => setTick(t => t + 1), ms);
+    if (remaining <= 0) return;
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [task]);
 

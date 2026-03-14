@@ -20,9 +20,11 @@ interface UIState {
   toggleDark: () => void;
   profileModalOpen: boolean;
   addTaskModalOpen: boolean;
+  authModalOpen: boolean;
   chatPanelOpen: boolean;
   setProfileModalOpen: (v: boolean) => void;
   setAddTaskModalOpen: (v: boolean) => void;
+  setAuthModalOpen: (v: boolean) => void;
   setChatPanelOpen: (v: boolean) => void;
 }
 
@@ -41,9 +43,11 @@ export const useUIStore = create<UIState>((set) => ({
 
   profileModalOpen: false,
   addTaskModalOpen: false,
+  authModalOpen: false,
   chatPanelOpen: false,
 
   setProfileModalOpen: (v) => set({ profileModalOpen: v }),
   setAddTaskModalOpen: (v) => set({ addTaskModalOpen: v }),
+  setAuthModalOpen: (v) => set({ authModalOpen: v }),
   setChatPanelOpen: (v) => set({ chatPanelOpen: v }),
 }));

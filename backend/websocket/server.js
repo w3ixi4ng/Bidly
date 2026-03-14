@@ -47,7 +47,12 @@ io.on('connection', (socket) => {
       socketUserMap.set(socket.id, userId);
       console.log(`[join_user] ${socket.id} joined room ${room}`);
       socket.emit('joined', { room });
-      // Broadcast presence to all connected clients
+      // Send currently online users to the newly connected client
+      const onlineUserIds = [...new Set(socketUserMap.values())];
+      onlineUserIds.forEach((uid) => {
+        socket.emit('user_online', { user_id: uid });
+      });
+      // Broadcast this user's presence to all connected clients
       io.emit('user_online', { user_id: userId });
     } else {
       socket.emit('error', { message: 'user_id is required' });
@@ -86,7 +91,9 @@ async function consumeBidUpdates(channel) {
       if (task_id) {
         const room = `auction_${task_id}`;
         io.to(room).emit('bid_update', data);
-        console.log(`[bid_update] emitted to room ${room}:`, data);
+        // Also broadcast globally so the marketplace page can update
+        io.emit('bid_update', data);
+        console.log(`[bid_update] emitted to room ${room} + globally:`, data);
       } else {
         console.log('[bid_update] missing task_id in message:', data);
       }

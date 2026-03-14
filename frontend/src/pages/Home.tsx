@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useAuthStore } from '../store/authStore';
@@ -94,6 +94,8 @@ const STATS = [
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string })?.returnTo;
   const { isAuthenticated, setAuth } = useAuthStore();
   const { setTasks } = useTaskStore();
   const { setChats, upsertChat, setMessages } = useChatStore();
@@ -255,7 +257,7 @@ const Home: React.FC = () => {
       setAuth(user, result.access_token);
       connectSocket(result.user_id);
       await bootstrapAfterAuth(result.user_id);
-      navigate('/tasks');
+      navigate(returnTo || '/tasks');
     } catch (err) {
       setErrors({ general: err instanceof Error ? err.message : 'Authentication failed.' });
     } finally {
@@ -363,6 +365,35 @@ const Home: React.FC = () => {
             }} />
             <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>Live</span>
           </div>
+          <button
+            onClick={() => navigate('/tasks')}
+            style={{
+              padding: '7px 18px',
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white',
+              border: 'none',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              boxShadow: '0 2px 10px rgba(99,102,241,0.35)',
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(99,102,241,0.45)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(99,102,241,0.35)';
+            }}
+          >
+            Browse Tasks
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
           <LiquidGlassToggle />
         </div>
       </header>

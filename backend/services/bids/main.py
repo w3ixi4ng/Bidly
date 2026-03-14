@@ -41,6 +41,8 @@ def create_auction(auction_data: AuctionCreate):
 
 @app.post("/bids", response_model=BidResponse, status_code=201)
 def create_bid(bid: BidCreate):
+    if not bid.bidder_id:
+        raise HTTPException(status_code=400, detail="Bidder ID is required")
     try:
         prev_bidder = redis_service.get_current_bid(bid.task_id)
         redis_service.place_bid(bid.task_id, bid.bidder_id, bid.bid_amount, bid.timestamp.timestamp())

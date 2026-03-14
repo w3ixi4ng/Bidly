@@ -5,15 +5,18 @@ import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { getTasks } from '../api/tasks';
+import { getCurrentBid } from '../api/bids';
 import { getUser } from '../api/users';
 import { getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
+import { connectSocket } from '../socket/socket';
 import Navbar from '../components/Navbar';
 import TaskCard from '../components/TaskCard';
 import AddTaskButton from '../components/AddTaskButton';
 import AddTaskModal from '../components/AddTaskModal';
 import ProfileModal from '../components/ProfileModal';
 import ChatPanel from '../components/ChatPanel';
+import AuthModal from '../components/AuthModal';
 
 const CATEGORIES = ['All', 'Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
@@ -37,22 +40,24 @@ const EmptyIcon = () => (
 );
 
 const Tasks: React.FC = () => {
-  const { tasks, currentBids, searchQuery, setTasks, setSearchQuery } = useTaskStore();
-  const { addTaskModalOpen, profileModalOpen, isDark } = useUIStore();
+  const { tasks, currentBids, searchQuery, setTasks, setSearchQuery, setCurrentBid } = useTaskStore();
+  const { addTaskModalOpen, profileModalOpen, authModalOpen, isDark } = useUIStore();
   const { user, setAuth, access_token } = useAuthStore();
   const { setChats, upsertChat, setMessages } = useChatStore();
 
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'newest' | 'ending-soon' | 'lowest-bid'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'ending-soon' | 'lowest-bid' | 'highest-bid'>('newest');
 
   const gridRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const filtersRef = useRef<HTMLDivElement>(null);
 
+  // Bootstrap websocket if arriving directly on this page (e.g. page refresh)
   useEffect(() => {
     if (!user?.user_id) return;
+    connectSocket(user.user_id);
     getUser(user.user_id)
       .then(fresh => setAuth(fresh, access_token ?? ''))
       .catch(() => {});
@@ -90,6 +95,24 @@ const Tasks: React.FC = () => {
     return () => { cancelled = true; };
   }, [setTasks]);
 
+  // Fetch current bids for all active tasks so the marketplace shows live bid data
+  useEffect(() => {
+    const active = tasks.filter(
+      t => t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now()
+    );
+    active.forEach(task => {
+      if (currentBids[task.task_id] == null) {
+        getCurrentBid(task.task_id)
+          .then(bid => {
+            if (bid.bid_amount != null && bid.bidder_id != null) {
+              setCurrentBid(task.task_id, bid);
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }, [tasks]);
+
   // Entrance animations
   useEffect(() => {
     if (loading) return;
@@ -122,6 +145,11 @@ const Tasks: React.FC = () => {
       const bidA = currentBids[a.task_id]?.bid_amount ?? a.starting_bid;
       const bidB = currentBids[b.task_id]?.bid_amount ?? b.starting_bid;
       return bidA - bidB;
+    }
+    if (sortBy === 'highest-bid') {
+      const bidA = currentBids[a.task_id]?.bid_amount ?? a.starting_bid;
+      const bidB = currentBids[b.task_id]?.bid_amount ?? b.starting_bid;
+      return bidB - bidA;
     }
     // newest: reverse insertion order (tasks come sorted by start time desc from API ideally)
     return new Date(b.auction_start_time).getTime() - new Date(a.auction_start_time).getTime();
@@ -270,6 +298,7 @@ const Tasks: React.FC = () => {
                 <option value="newest">Newest first</option>
                 <option value="ending-soon">Ending soon</option>
                 <option value="lowest-bid">Lowest bid</option>
+                <option value="highest-bid">Highest bid</option>
               </select>
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
                 style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', pointerEvents: 'none' }}>
@@ -406,10 +435,11 @@ const Tasks: React.FC = () => {
         )}
       </div>
 
-      <AddTaskButton />
-      {addTaskModalOpen && <AddTaskModal />}
-      {profileModalOpen && <ProfileModal />}
-      <ChatPanel />
+      {user && <AddTaskButton />}
+      {user && addTaskModalOpen && <AddTaskModal />}
+      {user && profileModalOpen && <ProfileModal />}
+      {user && <ChatPanel />}
+      {authModalOpen && <AuthModal />}
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800;900&display=swap');

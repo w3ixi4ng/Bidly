@@ -10,9 +10,16 @@ local timestamp = tonumber(ARGV[3])
 local end_time = tonumber(redis.call("HGET", auction_key, "auction_end_time"))
 local current_bid = tonumber(redis.call("HGET", auction_key, "current_bid"))
 
+local current_bidder = redis.call("HGET", auction_key, "bidder_id")
+
 if not end_time then return {err="Auction not found"} end
 if timestamp > end_time then return {err="Auction has ended"} end
-if current_bid and bid_amount >= current_bid then return {err="Bid must be lower than current bid"} end
+
+if current_bidder and current_bidder ~= "" then
+    if bid_amount >= current_bid then return {err="Bid must be lower than current bid"} end
+else
+    if bid_amount > current_bid then return {err="Bid must be at or below the starting bid"} end
+end
 
 redis.call("HSET", auction_key, "bidder_id", bidder_id)
 redis.call("HSET", auction_key, "current_bid", bid_amount)
