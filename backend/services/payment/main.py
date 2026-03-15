@@ -53,6 +53,7 @@ def capture_payment_intent(payment_data: CapturePayment):
             "client_id": payment_data.client_id,
             "title": payment_data.title,
             "description": payment_data.description,
+            "category": payment_data.category,
             "auction_start_time": payment_data.auction_start_time.isoformat(),
             "auction_end_time": payment_data.auction_end_time.isoformat(),
             "starting_bid": payment_data.starting_bid,
@@ -93,6 +94,21 @@ def release_payment(data: ReleasePayment):
     )
 
     return {"transfer_id": transfer["id"], "refund_id": refund["id"]}
+
+
+@app.get("/payment/verify/{payment_intent_id}")
+def verify_payment(payment_intent_id: str):
+    """Verify a PaymentIntent's status directly with Stripe."""
+    try:
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        return {
+            "payment_intent_id": payment_intent["id"],
+            "status": payment_intent["status"],
+            "amount": payment_intent["amount"],
+            "metadata": payment_intent.get("metadata", {}),
+        }
+    except stripe.error.InvalidRequestError:
+        raise HTTPException(status_code=404, detail="PaymentIntent not found")
 
 
 @app.post("/payment/refund-payment")

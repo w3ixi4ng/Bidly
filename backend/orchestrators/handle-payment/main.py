@@ -1,15 +1,19 @@
 import httpx
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
-import service
 import stripe
 from dotenv import load_dotenv, find_dotenv
 import os
 
 load_dotenv(find_dotenv())
-TEMP_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+stripe.api_key = os.getenv("STRIPE_API_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 PAYMENT_URL = "http://payment:8011"
+CREATE_TASK_URL = "http://create-task:8009"
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -93,35 +97,58 @@ async def refund_payment(payment_data: RefundPaymentData):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# TODO: post to paymentlogs, and publish rabbitmq message to create task when payment success webhook is received from stripe
 @app.post("/handle-payment/stripe/webhook")
-async def payment_success_web_hook(request: Request):
-    # handle stripe webhook for payment success
+async def stripe_webhook(request: Request):
+    """
+    Stripe webhook handler — acts as a safety net.
+    If the frontend successfully created the task, the create-task endpoint's
+    idempotency check (payment_id lookup) will prevent duplicates.
+    If the frontend failed (e.g. browser closed), this creates the task.
+    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
+    if not STRIPE_WEBHOOK_SECRET:
+        logger.error("STRIPE_WEBHOOK_SECRET is not configured")
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_header, TEMP_WEBHOOK_SECRET
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
-
     except stripe.error.SignatureVerificationError as e:
-        # Invalid signature
         raise HTTPException(status_code=400, detail=str(e))
-    
+
     if event["type"] == "payment_intent.succeeded":
-        # post to payment logs if payment_intent_id does not exist
+        payment_intent = event["data"]["object"]
+        metadata = payment_intent.get("metadata", {})
 
-        if not service.get_payment_logs_by_payment_intent_id("payment_intent_id"):
-            # create payment log
-            service.post_payment_log({
-                "payment_intent_id": "payment_intent_id",
-                "amount": event["data"]["object"]["amount"],
-                "payment_status": "captured",
-                "client_id": event["data"]["object"]["metadata"]["client_id"],
-            })
-            pass
+        # Only process if this PaymentIntent has our task metadata
+        if not metadata.get("client_id") or not metadata.get("title"):
+            return {"status": "ignored", "reason": "not a task payment"}
 
-        # publish rabbitmq message to create task 
-    
+        # Call create-task orchestrator (its idempotency check prevents duplicates)
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(f"{CREATE_TASK_URL}/create-task", json={
+                    "title": metadata["title"],
+                    "description": metadata.get("description", ""),
+                    "requirements": [],
+                    "category": metadata.get("category", "Other"),
+                    "client_id": metadata["client_id"],
+                    "payment_id": payment_intent["id"],
+                    "starting_bid": float(metadata.get("starting_bid", 0)),
+                    "auction_start_time": metadata.get("auction_start_time"),
+                    "auction_end_time": metadata.get("auction_end_time"),
+                })
+
+                if res.status_code in (200, 201):
+                    task = res.json()
+                    already = task.get("already_exists", False)
+                    logger.info(f"Webhook: task {'already existed' if already else 'created'} for {payment_intent['id']}")
+                else:
+                    logger.error(f"Webhook: create-task failed ({res.status_code}): {res.text}")
+        except Exception as e:
+            logger.error(f"Webhook: failed to call create-task: {e}")
+
     return {"status": "success"}

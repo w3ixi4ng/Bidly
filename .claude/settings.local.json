@@ -5,7 +5,8 @@
       "Bash(xargs grep:*)",
       "Bash(npx tsc:*)",
       "Bash(find /c/ESD/Bidly/backend/services/payment -type f -name *.py)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(find /c/ESD/Bidly/backend -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\) -not -path */node_modules/*)"
     ]
   }
 }
