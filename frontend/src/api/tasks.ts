@@ -3,6 +3,7 @@ import type { Task, TaskCategory } from '../types';
 
 export async function getTasks(): Promise<Task[]> {
   const { data } = await apiClient.get<{ tasks: Task[] }>('/tasks');
+  console.log('Fetched tasks:', data.tasks);
   return data.tasks;
 }
 

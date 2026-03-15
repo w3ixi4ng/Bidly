@@ -3,8 +3,11 @@ kind: Ingress
 metadata:
   name: bidly-ingress
   namespace: bidly
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    # SSL termination — uncomment when domain is ready:
+    # networking.gke.io/managed-certificates: bidly-cert
 spec:
-  ingressClassName: gce
   rules:
     - http:
         paths:

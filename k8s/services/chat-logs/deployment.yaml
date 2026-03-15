@@ -4,7 +4,7 @@ metadata:
   name: chat-logs
   namespace: bidly
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: chat-logs
@@ -18,6 +18,10 @@ spec:
           image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chat-logs:latest
           ports:
             - containerPort: 8002
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
           envFrom:
             - secretRef:
                 name: firebase-secret

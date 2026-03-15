@@ -65,12 +65,28 @@ data:
               - /connect-chat
             strip_path: false
 
+      - name: handle-payment-service
+        url: http://handle-payment:8012
+        routes:
+          - name: handle-payment-route
+            paths:
+              - /handle-payment
+            strip_path: false
+
       - name: payment-service
         url: http://payment:8011
         routes:
           - name: payment-route
             paths:
               - /payment
+            strip_path: false
+
+      - name: websocket-service
+        url: http://websocket:8007
+        routes:
+          - name: websocket-route
+            paths:
+              - /socket.io
             strip_path: false
 
     plugins:
