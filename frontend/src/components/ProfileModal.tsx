@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { getUser, updateUser } from '../api/users';
-import { createConnectedAccount } from '../api/payment';
+import { createConnectedAccount, getAccountStatus, getOnboardingLink } from '../api/payment';
 import Skeleton from './Skeleton';
 
 const ProfileModal: React.FC = () => {
@@ -16,6 +16,8 @@ const ProfileModal: React.FC = () => {
   const [saveError, setSaveError] = useState('');
   const [connectError, setConnectError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [stripeOnboarded, setStripeOnboarded] = useState<boolean | null>(null);
+  const [resumingOnboarding, setResumingOnboarding] = useState(false);
 
   // Fetch fresh profile on open to ensure stripe_id and name are current
   useEffect(() => {
@@ -29,6 +31,28 @@ const ProfileModal: React.FC = () => {
       .catch(() => { /* fall back to cached */ })
       .finally(() => setLoadingUser(false));
   }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check Stripe onboarding status
+  useEffect(() => {
+    if (!user?.stripe_connected_account_id) return;
+    getAccountStatus(user.stripe_connected_account_id)
+      .then(status => setStripeOnboarded(status.charges_enabled))
+      .catch(() => setStripeOnboarded(null));
+  }, [user?.stripe_connected_account_id]);
+
+  const handleResumeOnboarding = async () => {
+    if (!user?.stripe_connected_account_id) return;
+    setResumingOnboarding(true);
+    setConnectError('');
+    try {
+      const { url } = await getOnboardingLink(user.stripe_connected_account_id);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to get onboarding link.');
+    } finally {
+      setResumingOnboarding(false);
+    }
+  };
 
   if (!user) return null;
 
@@ -149,23 +173,56 @@ const ProfileModal: React.FC = () => {
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Stripe Account</div>
               {user.stripe_connected_account_id ? (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '12px 14px',
-                  background: 'rgba(34,197,94,0.08)',
-                  border: '1px solid rgba(34,197,94,0.25)',
-                  borderRadius: 'var(--radius)',
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <div>
-                    <div style={{ fontWeight: 600, color: '#16a34a', fontSize: 14 }}>Connected</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1, fontFamily: 'monospace' }}>
-                      {user.stripe_connected_account_id}
+                stripeOnboarded === false ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '12px 14px',
+                      background: 'rgba(234,179,8,0.08)',
+                      border: '1px solid rgba(234,179,8,0.25)',
+                      borderRadius: 'var(--radius)',
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#ca8a04', fontSize: 14 }}>Onboarding Incomplete</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>
+                          Please complete your Stripe account setup to receive payments.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleResumeOnboarding}
+                      disabled={resumingOnboarding}
+                      style={{ width: '100%' }}
+                    >
+                      {resumingOnboarding ? <span className="spinner" style={{ borderTopColor: 'var(--text-primary)' }} /> : 'Complete Onboarding'}
+                    </button>
+                    {connectError && <span className="error-msg">{connectError}</span>}
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 14px',
+                    background: 'rgba(34,197,94,0.08)',
+                    border: '1px solid rgba(34,197,94,0.25)',
+                    borderRadius: 'var(--radius)',
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#16a34a', fontSize: 14 }}>Connected</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1, fontFamily: 'monospace' }}>
+                        {user.stripe_connected_account_id}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )
               ) : (
                 <>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>

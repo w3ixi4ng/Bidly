@@ -31,6 +31,20 @@ export async function createConnectedAccount(
   return data;
 }
 
+export async function getAccountStatus(
+  accountId: string
+): Promise<{ charges_enabled: boolean; payouts_enabled: boolean; details_submitted: boolean }> {
+  const { data } = await apiClient.get(`/payment/account-status/${accountId}`);
+  return data;
+}
+
+export async function getOnboardingLink(
+  accountId: string
+): Promise<{ url: string }> {
+  const { data } = await apiClient.post(`/payment/onboarding-link/${accountId}`);
+  return data;
+}
+
 export interface ReleasePaymentPayload {
   payment_id: string;
   freelancer_id: string;
