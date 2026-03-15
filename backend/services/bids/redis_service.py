@@ -9,6 +9,7 @@ local timestamp = tonumber(ARGV[3])
 
 local end_time = tonumber(redis.call("HGET", auction_key, "auction_end_time"))
 local current_bid = tonumber(redis.call("HGET", auction_key, "current_bid"))
+local stored_bidder = redis.call("HGET", auction_key, "bidder_id")
 
 local current_bidder = redis.call("HGET", auction_key, "bidder_id")
 

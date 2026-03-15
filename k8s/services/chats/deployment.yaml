@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chats
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chats
+  template:
+    metadata:
+      labels:
+        app: chats
+    spec:
+      containers:
+        - name: chats
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chats:latest
+          ports:
+            - containerPort: 8006
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          envFrom:
+            - secretRef:
+                name: supabase-secret

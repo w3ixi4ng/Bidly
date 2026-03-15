@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: create-task
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: create-task
+  template:
+    metadata:
+      labels:
+        app: create-task
+    spec:
+      containers:
+        - name: create-task
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/create-task:latest
+          ports:
+            - containerPort: 8009
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          envFrom:
+            - secretRef:
+                name: supabase-secret
