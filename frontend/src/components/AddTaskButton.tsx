@@ -1,11 +1,22 @@
 import React, { useContext, useState } from 'react';
 import { useUIStore } from '../store/uiStore';
+import { useAuthStore } from '../store/authStore';
 import { StripePreloadContext } from '../App';
 
 const AddTaskButton: React.FC = () => {
-  const { setAddTaskModalOpen } = useUIStore();
+  const { setAddTaskModalOpen, setAuthModalOpen } = useUIStore();
+  const { user } = useAuthStore();
   const { preload: preloadStripe } = useContext(StripePreloadContext);
   const [hovered, setHovered] = useState(false);
+
+  const handleClick = () => {
+    if (!user) {
+      setAuthModalOpen(true);
+    } else {
+      preloadStripe();
+      setAddTaskModalOpen(true);
+    }
+  };
 
   return (
     <div
@@ -23,7 +34,7 @@ const AddTaskButton: React.FC = () => {
     >
       {/* Circle button — always perfectly round, never resizes */}
       <button
-        onClick={() => { preloadStripe(); setAddTaskModalOpen(true); }}
+        onClick={handleClick}
         onMouseEnter={() => { setHovered(true); preloadStripe(); }}
         onMouseLeave={() => setHovered(false)}
         aria-label="Add new task"

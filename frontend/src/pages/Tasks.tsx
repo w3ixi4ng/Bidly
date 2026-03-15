@@ -435,7 +435,7 @@ const Tasks: React.FC = () => {
         )}
       </div>
 
-      {user && <AddTaskButton />}
+      <AddTaskButton />
       {user && addTaskModalOpen && <AddTaskModal />}
       {user && profileModalOpen && <ProfileModal />}
       {user && <ChatPanel />}
