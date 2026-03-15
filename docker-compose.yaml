@@ -165,6 +165,8 @@ services:
       - "8012:8012"
     networks:
       - bidly-net
+    env_file:
+      - .env.stripe
 
   websocket:
     image: bidly/websocket:latest
