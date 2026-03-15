@@ -17,4 +17,4 @@ class ChatDetailResponse(BaseModel):
 
 
 class ChatListResponse(BaseModel):
-    chats: list[ChatResponse]
+    chats: list[ChatDetailResponse]

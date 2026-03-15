@@ -1,14 +1,27 @@
-import client from './client'
-import type { Bid, BidCurrent, BidCreate, AuctionCreate } from '../types'
+import { apiClient } from './client';
+import type { CurrentBid } from '../types';
 
-export const createAuction = (data: AuctionCreate) =>
-  client.post('/bids/auction', data).then((r) => r.data)
+export interface PlaceBidPayload {
+  task_id: string;
+  bidder_id: string;
+  bid_amount: number;
+  timestamp: string;
+}
 
-export const placeBid = (data: BidCreate) =>
-  client.post<Bid>('/bids', data).then((r) => r.data)
+export interface BidResponse {
+  bid_id?: string;
+  task_id: string;
+  bidder_id: string;
+  bid_amount: number;
+  timestamp: string;
+}
 
-export const getCurrentBid = (task_id: string) =>
-  client.get<BidCurrent>(`/bids/current/${task_id}`).then((r) => r.data)
+export async function placeBid(payload: PlaceBidPayload): Promise<BidResponse> {
+  const { data } = await apiClient.post<BidResponse>('/bids', payload);
+  return data;
+}
 
-export const getBidsByTask = (task_id: string) =>
-  client.get<{ bids: Bid[] }>(`/bids/task/${task_id}`).then((r) => r.data.bids)
+export async function getCurrentBid(task_id: string): Promise<CurrentBid> {
+  const { data } = await apiClient.get<CurrentBid>(`/bids/current/${task_id}`);
+  return data;
+}

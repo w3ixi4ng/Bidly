@@ -1,14 +1,43 @@
-import client from './client'
-import type { AuthResponse, User } from '../types'
+import { apiClient } from './client';
+import type { User } from '../types';
 
-export const signup = (email: string, password: string, name?: string) =>
-  client.post<AuthResponse>('localhost:8000/users/auth/signup', { email, password, name }).then((r) => r.data)
+export interface SignupPayload {
+  email: string;
+  password: string;
+  name: string;
+}
 
-export const login = (email: string, password: string) =>
-  client.post<AuthResponse>('/users/auth/login', { email, password }).then((r) => r.data)
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
 
-export const getUser = (user_id: string) =>
-  client.get<User>(`/users/${user_id}`).then((r) => r.data)
+export interface AuthResponse {
+  user: User;
+  access_token: string;
+  refresh_token: string;
+  user_id: string;
+}
 
-export const updateUser = (user_id: string, name: string) =>
-  client.put<User>(`/users/${user_id}`, { name }).then((r) => r.data)
+export async function signup(payload: SignupPayload): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/users/auth/signup', payload);
+  return data;
+}
+
+export async function login(payload: LoginPayload): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/users/auth/login', payload);
+  return data;
+}
+
+export async function getUser(user_id: string): Promise<User> {
+  const { data } = await apiClient.get<User>(`/users/${user_id}`);
+  return data;
+}
+
+export async function updateUser(
+  user_id: string,
+  payload: { name?: string; stripe_connected_account_id?: string }
+): Promise<User> {
+  const { data } = await apiClient.put<User>(`/users/${user_id}`, payload);
+  return data;
+}

@@ -151,6 +151,7 @@ services:
     build: ./backend/orchestrators/handle-payment
     container_name: handle-payment
     restart: on-failure
+    env_file: .env.stripe
     ports:
       - "8012:8012"
     networks:
@@ -185,6 +186,7 @@ services:
   payment:
     build: ./backend/services/payment
     container_name: payment
+    env_file: .env.stripe
     ports:
       - "8011:8011"
     networks:
@@ -197,6 +199,8 @@ services:
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yaml
+      KONG_DNS_VALID_TTL: "10"
+      KONG_DNS_STALE_TTL: "0"
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
@@ -217,6 +221,7 @@ services:
       - bids
       - users
       - connect-chat
+      - websocket
 
   frontend:
     build: ./frontend

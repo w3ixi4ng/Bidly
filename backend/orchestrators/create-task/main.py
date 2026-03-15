@@ -41,7 +41,7 @@ async def create_task(body: CreateTaskRequest):
     async with httpx.AsyncClient() as client:
         # Idempotency: check if task already exists for this payment_id
         check = await client.get(f"{TASKS_URL}/tasks/payment_id/{body.payment_id}")
-        existing = check.json().get("tasks", [])
+        existing = check.json().get("tasks", []) if check.status_code == 200 else []
         if existing:
             return {**existing[0], "already_exists": True}
 
@@ -49,6 +49,8 @@ async def create_task(body: CreateTaskRequest):
         task_res = await client.post(f"{TASKS_URL}/tasks", json={
             "title": body.title,
             "description": body.description,
+            "requirements": body.requirements,
+            "category": body.category,
             "client_id": body.client_id,
             "payment_id": body.payment_id,
             "starting_bid": body.starting_bid,

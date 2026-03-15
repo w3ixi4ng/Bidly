@@ -30,8 +30,8 @@ async def process_auction_end(message: aio_pika.IncomingMessage):
     async with message.process():
         try:
             data = json.loads(message.body.decode())
-            user_1_id = data["user_1_id"]
-            user_2_id = data["user_2_id"]
+            user_1_id = data.get("user_1_id") or data.get("client_id")
+            user_2_id = data.get("user_2_id") or data.get("freelancer_id")
             task_title = data.get("task_title", "N/A")
 
             async with httpx.AsyncClient() as client:

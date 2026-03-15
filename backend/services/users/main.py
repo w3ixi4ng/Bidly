@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from schema import UserSignup, UserLogin, UserResponse, UserUpdate
 from supabase_service import SupabaseAuthService
 import uvicorn
+import asyncio
 
 app = FastAPI()
 supabase_auth = SupabaseAuthService()
@@ -43,6 +44,9 @@ async def signup(user_data: UserSignup):
             return {"message": "Confirmation email sent. Please verify your email to continue."}
 
         profile = supabase_auth.get_user_profile(user.id)
+        if not profile:
+            await asyncio.sleep(2)
+            profile = supabase_auth.get_user_profile(user.id)
 
         return {
             "user": UserResponse(**profile) if profile else None,
@@ -68,7 +72,10 @@ async def login(credentials: UserLogin):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         profile = supabase_auth.get_user_profile(user.id)
-        
+        if not profile:
+            await asyncio.sleep(2)
+            profile = supabase_auth.get_user_profile(user.id)
+
         return {
             "user": UserResponse(**profile) if profile else None,
             "access_token": session.access_token,

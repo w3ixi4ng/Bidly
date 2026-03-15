@@ -1,44 +1,35 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import type { User } from '../types'
-import * as usersApi from '../api/users'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { User } from '../types';
 
 interface AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, name?: string) => Promise<void>
-  logout: () => void
+  user: User | null;
+  access_token: string | null;
+  isAuthenticated: boolean;
+  setAuth: (user: User, token: string) => void;
+  updateUser: (patch: Partial<User>) => void;
+  logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      token: null,
+      access_token: null,
       isAuthenticated: false,
-
-      login: async (email, password) => {
-        const data = await usersApi.login(email, password)
-        localStorage.setItem('bidly_token', data.access_token)
-        set({ user: data.user, token: data.access_token, isAuthenticated: true })
-      },
-
-      signup: async (email, password, name) => {
-        const data = await usersApi.signup(email, password, name)
-        localStorage.setItem('bidly_token', data.access_token)
-        set({ user: data.user, token: data.access_token, isAuthenticated: true })
-      },
-
+      setAuth: (user, token) =>
+        set({ user, access_token: token, isAuthenticated: true }),
+      updateUser: (patch) =>
+        set(state => ({ user: state.user ? { ...state.user, ...patch } : state.user })),
       logout: () => {
-        localStorage.removeItem('bidly_token')
-        set({ user: null, token: null, isAuthenticated: false })
+        set({ user: null, access_token: null, isAuthenticated: false });
+        // Clear other stores so next user starts fresh
+        import('../store/chatStore').then(m => m.useChatStore.getState().setChats([]));
+        import('../store/taskStore').then(m => m.useTaskStore.getState().setTasks([]));
       },
     }),
     {
       name: 'bidly-auth',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
     }
   )
-)
+);
