@@ -35,7 +35,7 @@ async def send_email(request: SendEmailRequest):
         raise HTTPException(status_code=404, detail=f"Template '{request.template_name}' not found")
     
     try:
-        message = Mail(from_email="esdbidly@gmail.com", to_emails=request.to_email)
+        message = Mail(from_email="esdbidly@proton.me", to_emails=request.to_email)
         message.template_id = template_id
         message.dynamic_template_data = request.dynamic_template_data
         
