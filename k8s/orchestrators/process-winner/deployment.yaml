@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: process-winner
+  namespace: bidly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: process-winner
+  template:
+    metadata:
+      labels:
+        app: process-winner
+    spec:
+      containers:
+        - name: process-winner
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/process-winner:latest
+          # Pure RabbitMQ consumer — no HTTP port, no Service needed
+          # Consumes from Process_Winner queue (dead-lettered from auction_in_progress)
+          envFrom:
+            - secretRef:
+                name: supabase-secret

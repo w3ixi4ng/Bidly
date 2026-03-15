@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rabbitmq-setup
+  namespace: bidly
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # Wait for RabbitMQ to be ready before running setup
+        - name: wait-for-rabbitmq
+          image: busybox
+          command: ["sh", "-c", "until nc -z rabbitmq 5672; do echo waiting for rabbitmq; sleep 5; done"]
+      containers:
+        - name: rabbitmq-setup
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/rabbitmq-setup:latest
