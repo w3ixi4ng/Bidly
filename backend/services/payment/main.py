@@ -2,11 +2,12 @@ import os
 from fastapi import FastAPI, HTTPException
 import stripe
 from dotenv import load_dotenv, find_dotenv
-from schema import ReleasePayment, CapturePayment, CreateConnectedAccount
+from schema import ReleasePayment, RefundPayment, CapturePayment, CreateConnectedAccount
 import uvicorn
 
 load_dotenv(find_dotenv())
 stripe.api_key = os.getenv("STRIPE_API_KEY")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 app = FastAPI()
@@ -34,9 +35,8 @@ def create_connected_account(data: CreateConnectedAccount):
 
     link = stripe.AccountLink.create(
         account=account["id"],
-        # In production, these URLs should be your actual frontend routes that handle the onboarding flow
-        refresh_url="https://yourapp.com/onboarding/retry",
-        return_url="https://yourapp.com/onboarding/complete",
+        refresh_url=f"{FRONTEND_URL}/tasks",
+        return_url=f"{FRONTEND_URL}/tasks",
         type="account_onboarding",
     )
 
@@ -50,7 +50,13 @@ def capture_payment_intent(payment_data: CapturePayment):
         currency="sgd",
         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
         metadata={
-            **{k: str(v) for k, v in payment_data.model_dump(mode='json').items()},
+            "client_id": payment_data.client_id,
+            "title": payment_data.title,
+            "description": payment_data.description,
+            "category": payment_data.category,
+            "auction_start_time": payment_data.auction_start_time.isoformat(),
+            "auction_end_time": payment_data.auction_end_time.isoformat(),
+            "starting_bid": payment_data.starting_bid,
             "auction_status": "pending"
         }
     )
@@ -90,12 +96,26 @@ def release_payment(data: ReleasePayment):
     return {"transfer_id": transfer["id"], "refund_id": refund["id"]}
 
 
+@app.get("/payment/verify/{payment_intent_id}")
+def verify_payment(payment_intent_id: str):
+    """Verify a PaymentIntent's status directly with Stripe."""
+    try:
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        return {
+            "payment_intent_id": payment_intent["id"],
+            "status": payment_intent["status"],
+            "amount": payment_intent["amount"],
+            "metadata": payment_intent.get("metadata", {}),
+        }
+    except stripe.error.InvalidRequestError:
+        raise HTTPException(status_code=404, detail="PaymentIntent not found")
+
+
 @app.post("/payment/refund-payment")
-def refund_payment(data: ReleasePayment):
-    # Refund entire amount back to client
+def refund_payment(data: RefundPayment):
+    # Full refund back to client
     refund = stripe.Refund.create(
         payment_intent=data.payment_intent_id,
-        amount=int(data.amount * 100),  # Convert to cents
     )
 
     return {"refund_id": refund["id"]}

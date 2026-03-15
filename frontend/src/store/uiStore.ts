@@ -15,6 +15,13 @@ function applyDark(isDark: boolean) {
   localStorage.setItem('bidly-theme', isDark ? 'dark' : 'light');
 }
 
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'error';
+  link?: string;
+}
+
 interface UIState {
   isDark: boolean;
   toggleDark: () => void;
@@ -26,6 +33,9 @@ interface UIState {
   setAddTaskModalOpen: (v: boolean) => void;
   setAuthModalOpen: (v: boolean) => void;
   setChatPanelOpen: (v: boolean) => void;
+  toasts: Toast[];
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
 }
 
 const initialDark = getInitialDark();
@@ -50,4 +60,14 @@ export const useUIStore = create<UIState>((set) => ({
   setAddTaskModalOpen: (v) => set({ addTaskModalOpen: v }),
   setAuthModalOpen: (v) => set({ authModalOpen: v }),
   setChatPanelOpen: (v) => set({ chatPanelOpen: v }),
+
+  toasts: [],
+  addToast: (toast) => {
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    set((state) => ({ toasts: [...state.toasts, { ...toast, id }] }));
+    setTimeout(() => {
+      set((state) => ({ toasts: state.toasts.filter(t => t.id !== id) }));
+    }, 5000);
+  },
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter(t => t.id !== id) })),
 }));

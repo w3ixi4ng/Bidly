@@ -56,6 +56,10 @@ class SupabaseAuthService:
         return response.data
     
     
+    def refresh_session(self, refresh_token: str):
+        response = self.client.auth.refresh_session(refresh_token)
+        return response.session
+
     def get_all_users(self):
         response = self.admin_client.schema("users").from_("users").select("*").execute()
         return response.data

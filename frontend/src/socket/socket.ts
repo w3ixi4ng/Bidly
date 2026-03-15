@@ -2,6 +2,8 @@ import { io, Socket } from 'socket.io-client';
 import { useTaskStore } from '../store/taskStore';
 import { useChatStore } from '../store/chatStore';
 import { usePresenceStore } from '../store/presenceStore';
+import { useUIStore } from '../store/uiStore';
+import { useAuthStore } from '../store/authStore';
 import type { Task } from '../types';
 
 const WS_URL = import.meta.env.VITE_WS_URL as string;
@@ -22,7 +24,27 @@ export function connectSocket(userId: string): void {
   });
 
   socket.on('bid_update', (data: { task_id: string; bid_amount: number; bidder_id: string }) => {
-    useTaskStore.getState().setCurrentBid(data.task_id, {
+    const taskStore = useTaskStore.getState();
+    const currentUser = useAuthStore.getState().user;
+    const prevBid = taskStore.currentBids[data.task_id];
+
+    // Check if current user was the previous winning bidder and just got outbid
+    if (
+      currentUser &&
+      prevBid?.bidder_id === currentUser.user_id &&
+      data.bidder_id !== currentUser.user_id
+    ) {
+      const task = taskStore.tasks.find(t => t.task_id === data.task_id);
+      const taskTitle = task?.title ?? 'a task';
+      const slug = taskTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      useUIStore.getState().addToast({
+        message: `You've been outbid on "${taskTitle}" — new bid: $${data.bid_amount.toFixed(2)}`,
+        type: 'warning',
+        link: `/${slug}`,
+      });
+    }
+
+    taskStore.setCurrentBid(data.task_id, {
       bid_amount: data.bid_amount,
       bidder_id: data.bidder_id,
     });

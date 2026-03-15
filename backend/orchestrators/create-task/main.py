@@ -8,6 +8,7 @@ from schema import CreateTaskRequest
 import uvicorn
 
 TASKS_URL = "http://tasks:8005"
+PAYMENT_URL = "http://payment:8011"
 
 rabbitmq_connection = None
 bidly_exchange = None
@@ -45,7 +46,15 @@ async def create_task(body: CreateTaskRequest):
         if existing:
             return {**existing[0], "already_exists": True}
 
-        # No task yet — create it
+        # Server-side payment verification: confirm with Stripe that payment succeeded
+        verify_res = await client.get(f"{PAYMENT_URL}/payment/verify/{body.payment_id}")
+        if verify_res.status_code != 200:
+            raise HTTPException(status_code=402, detail="Unable to verify payment")
+        payment_status = verify_res.json().get("status")
+        if payment_status != "succeeded":
+            raise HTTPException(status_code=402, detail=f"Payment not confirmed (status: {payment_status})")
+
+        # Payment verified — create the task
         task_res = await client.post(f"{TASKS_URL}/tasks", json={
             "title": body.title,
             "description": body.description,

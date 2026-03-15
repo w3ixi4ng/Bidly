@@ -17,6 +17,8 @@ class SupabaseService:
 
     def get_bids_by_task(self, task_id: str):
         return self.client.schema("bids").table("bids").select("*").eq("task_id", task_id).execute().data
-    
-    
+
+    def get_bids_by_user(self, bidder_id: str):
+        return self.client.schema("bids").table("bids").select("*").eq("bidder_id", bidder_id).execute().data
+
 
