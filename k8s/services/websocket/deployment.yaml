@@ -13,9 +13,18 @@ spec:
       labels:
         app: websocket
     spec:
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox
+          command: ["sh", "-c", "until nc -z rabbitmq 5672; do echo waiting for rabbitmq; sleep 5; done; echo rabbitmq port open, sleeping 20s for readiness; sleep 20"]
       containers:
         - name: websocket
           image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/websocket:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8007
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
           # RabbitMQ hostname "rabbitmq" is hardcoded in the service, matches k8s Service name

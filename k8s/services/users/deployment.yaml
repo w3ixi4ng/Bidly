@@ -16,12 +16,13 @@ spec:
       containers:
         - name: users
           image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/users:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8004
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: 50m
+              memory: 128Mi
           envFrom:
             - secretRef:
                 name: supabase-secret
