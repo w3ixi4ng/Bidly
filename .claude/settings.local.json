@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:8000/bids/current/some-task-with-no-bids)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

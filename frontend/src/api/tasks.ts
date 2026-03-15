@@ -1,17 +1,29 @@
-import client from './client'
-import type { Task, TaskCreate, TaskUpdate } from '../types'
+import { apiClient } from './client';
+import type { Task, TaskCategory } from '../types';
 
-export const getTasks = () =>
-  client.get<{ tasks: Task[] }>('/tasks').then((r) => r.data.tasks)
+export async function getTasks(): Promise<Task[]> {
+  const { data } = await apiClient.get<{ tasks: Task[] }>('/tasks');
+  return data.tasks;
+}
 
-export const getTask = (task_id: string) =>
-  client.get<Task>(`/tasks/${task_id}`).then((r) => r.data)
+export async function getTask(task_id: string): Promise<Task> {
+  const { data } = await apiClient.get<Task>(`/tasks/${task_id}`);
+  return data;
+}
 
-export const createTask = (data: TaskCreate) =>
-  client.post<Task>('/tasks', data).then((r) => r.data)
+export interface CreateTaskPayload {
+  title: string;
+  description: string;
+  requirements: string[];
+  category: TaskCategory;
+  client_id: string;
+  payment_id: string;
+  starting_bid: number;
+  auction_start_time: string;
+  auction_end_time: string;
+}
 
-export const updateTask = (task_id: string, data: TaskUpdate) =>
-  client.put<Task>(`/tasks/${task_id}`, data).then((r) => r.data)
-
-export const deleteTask = (task_id: string) =>
-  client.delete(`/tasks/${task_id}`).then((r) => r.data)
+export async function createTask(payload: CreateTaskPayload): Promise<Task> {
+  const { data } = await apiClient.post<Task>('/create-task', payload);
+  return data;
+}

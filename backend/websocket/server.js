@@ -17,6 +17,11 @@ const io = new Server(httpServer, {
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 
 // ---------------------------------------------------------------------------
+// Presence tracking: socketId -> userId
+// ---------------------------------------------------------------------------
+const socketUserMap = new Map(); // socketId -> userId
+
+// ---------------------------------------------------------------------------
 // Socket.IO events
 // ---------------------------------------------------------------------------
 io.on('connection', (socket) => {
@@ -39,14 +44,32 @@ io.on('connection', (socket) => {
     if (userId) {
       const room = `user_${userId}`;
       socket.join(room);
+      socketUserMap.set(socket.id, userId);
       console.log(`[join_user] ${socket.id} joined room ${room}`);
       socket.emit('joined', { room });
+      // Send currently online users to the newly connected client
+      const onlineUserIds = [...new Set(socketUserMap.values())];
+      onlineUserIds.forEach((uid) => {
+        socket.emit('user_online', { user_id: uid });
+      });
+      // Broadcast this user's presence to all connected clients
+      io.emit('user_online', { user_id: userId });
     } else {
       socket.emit('error', { message: 'user_id is required' });
     }
   });
 
   socket.on('disconnect', () => {
+    const userId = socketUserMap.get(socket.id);
+    socketUserMap.delete(socket.id);
+    if (userId) {
+      // Only mark offline if no other sockets for same user remain
+      const stillOnline = [...socketUserMap.values()].includes(userId);
+      if (!stillOnline) {
+        io.emit('user_offline', { user_id: userId });
+        console.log(`[presence] user_offline: ${userId}`);
+      }
+    }
     console.log(`[disconnect] client disconnected: ${socket.id}`);
   });
 });
@@ -68,7 +91,9 @@ async function consumeBidUpdates(channel) {
       if (task_id) {
         const room = `auction_${task_id}`;
         io.to(room).emit('bid_update', data);
-        console.log(`[bid_update] emitted to room ${room}:`, data);
+        // Also broadcast globally so the marketplace page can update
+        io.emit('bid_update', data);
+        console.log(`[bid_update] emitted to room ${room} + globally:`, data);
       } else {
         console.log('[bid_update] missing task_id in message:', data);
       }

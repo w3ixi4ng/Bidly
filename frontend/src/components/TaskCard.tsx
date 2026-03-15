@@ -1,85 +1,235 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import type { Task } from '../types'
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { Task, CurrentBid } from '../types';
+import Skeleton from './Skeleton';
 
-function useTimeLeft(endTime: string) {
-  const calc = () => {
-    const diff = new Date(endTime).getTime() - Date.now()
-    if (diff <= 0) return null
-    const h = Math.floor(diff / 3600000)
-    const m = Math.floor((diff % 3600000) / 60000)
-    if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`
-    if (h > 0)   return `${h}h ${m}m`
-    return `${m}m`
-  }
-  const [t, setT] = useState(calc)
-  useEffect(() => {
-    const id = setInterval(() => setT(calc()), 30_000)
-    return () => clearInterval(id)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endTime])
-  return t
+interface TaskCardProps {
+  task?: Task;
+  currentBid?: CurrentBid;
 }
 
-export default function TaskCard({ task }: { task: Task }) {
-  const timeLeft = useTimeLeft(task.auction_end_time)
-  const urgent   = timeLeft && !timeLeft.includes('d')
+function toSlug(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'medium' | 'high' } {
+  const diff = new Date(endTime).getTime() - Date.now();
+  if (diff <= 0) return { text: 'Ended', urgency: 'high' };
+  const totalHours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const remainingHours = totalHours % 24;
+    return { text: `${days}d ${remainingHours}h left`, urgency: 'low' };
+  }
+  if (totalHours > 2) return { text: `${totalHours}h ${mins}m left`, urgency: 'medium' };
+  if (totalHours > 0) return { text: `${totalHours}h ${mins}m left`, urgency: 'high' };
+  if (mins > 0) return { text: `${mins}m left`, urgency: 'high' };
+  return { text: `${secs}s left`, urgency: 'high' };
+}
+
+const TaskCardSkeleton: React.FC = () => (
+  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 196 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+      <Skeleton variant="text" width="65%" height="20px" />
+      <Skeleton variant="rect" width="72px" height="22px" style={{ borderRadius: 999, flexShrink: 0 }} />
+    </div>
+    <Skeleton variant="text" width="100%" height="14px" />
+    <Skeleton variant="text" width="80%" height="14px" />
+    <div style={{ marginTop: 'auto', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <Skeleton variant="text" width="60px" height="11px" />
+        <Skeleton variant="text" width="80px" height="20px" />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+        <Skeleton variant="text" width="50px" height="11px" />
+        <Skeleton variant="text" width="90px" height="16px" />
+      </div>
+    </div>
+  </div>
+);
+
+const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
+  const navigate = useNavigate();
+  const [, setTick] = useState(0);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!task) return;
+    const remaining = new Date(task.auction_end_time).getTime() - Date.now();
+    if (remaining <= 0) return;
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [task]);
+
+  if (!task) return <TaskCardSkeleton />;
+
+  const hasBid = currentBid?.bid_amount != null && currentBid?.bidder_id != null;
+  const displayBid = hasBid
+    ? `$${(currentBid!.bid_amount as number).toFixed(2)}`
+    : `$${task.starting_bid.toFixed(2)}`;
+
+  const countdown = formatCountdown(task.auction_end_time);
+
+  const urgencyColor = {
+    low: '#22c55e',
+    medium: '#f97316',
+    high: '#ef4444',
+  }[countdown.urgency];
+
+  const handleClick = () => navigate(`/${toSlug(task.title)}`);
 
   return (
-    <Link
-      to={`/tasks/${task.task_id}`}
-      className="card-glow group flex flex-col rounded-2xl border border-zinc-800/70 bg-zinc-900/50 hover:bg-zinc-900/80 transition-all duration-300 overflow-hidden"
+    <div
+      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: 'var(--surface)',
+        border: `1px solid ${hovered ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+        borderRadius: 20,
+        padding: '22px 22px 18px',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        minHeight: 196,
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: hovered
+          ? '0 12px 40px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)'
+          : '0 2px 8px rgba(0,0,0,0.05)',
+        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
+        transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease',
+      }}
     >
-      {/* Top accent bar */}
-      <div className="h-[2px] w-full"
-        style={{ background: 'linear-gradient(90deg, #f59e0b, #fbbf24, transparent)' }} />
+      {/* Accent glow on hover */}
+      {hovered && (
+        <div style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0,
+          height: 2,
+          background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+          borderRadius: '20px 20px 0 0',
+        }} />
+      )}
 
-      <div className="flex flex-col flex-1 p-5">
+      {/* Live pulse if has active bid */}
+      {hasBid && (
+        <div style={{
+          position: 'absolute',
+          top: 18, right: 18,
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '3px 9px',
+          background: 'rgba(99,102,241,0.1)',
+          border: '1px solid rgba(99,102,241,0.2)',
+          borderRadius: 999,
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: '#6366f1',
+            boxShadow: '0 0 6px #6366f1',
+            animation: 'cardPulse 2s ease infinite',
+            display: 'inline-block',
+          }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: '0.5px' }}>
+            BIDDING
+          </span>
+        </div>
+      )}
 
-        {/* Live dot + time */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="ping-slow absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            </span>
-            <span className="text-xs font-medium text-emerald-400">Live</span>
+      {/* Title */}
+      <h3 style={{
+        fontSize: 15,
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        lineHeight: 1.35,
+        marginBottom: 10,
+        paddingRight: hasBid ? 80 : 0,
+        fontFamily: "'Space Grotesk', sans-serif",
+      }}>
+        {task.title}
+      </h3>
+
+      {/* Description */}
+      <p style={{
+        fontSize: 13,
+        color: 'var(--text-secondary)',
+        lineHeight: 1.6,
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
+        marginBottom: 16,
+        flex: 1,
+      }}>
+        {task.description}
+      </p>
+
+      {/* Footer row */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        paddingTop: 14,
+        borderTop: '1px solid var(--border)',
+        marginTop: 'auto',
+      }}>
+        {/* Bid info */}
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+            {hasBid ? 'Current Bid' : 'Starting Bid'}
           </div>
-          {timeLeft ? (
-            <span className={`text-xs font-semibold tabular px-2 py-0.5 rounded-full ${
-              urgent
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                : 'text-zinc-400'
-            }`}>
-              {timeLeft} left
-            </span>
-          ) : (
-            <span className="text-xs text-zinc-600">Ended</span>
+          <div style={{
+            fontSize: 18,
+            fontWeight: 800,
+            color: hasBid ? '#6366f1' : 'var(--text-primary)',
+            fontFamily: "'Space Grotesk', sans-serif",
+            letterSpacing: '-0.5px',
+          }}>
+            {displayBid}
+          </div>
+          {hasBid && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
+              from ${task.starting_bid.toFixed(2)}
+            </div>
           )}
         </div>
 
-        {/* Title */}
-        <h3 className="text-[15px] font-semibold text-zinc-100 leading-snug group-hover:text-white transition-colors line-clamp-2 mb-2">
-          {task.title}
-        </h3>
-
-        {/* Description */}
-        <p className="text-zinc-500 text-[13px] leading-relaxed line-clamp-3 flex-1 mb-5">
-          {task.description}
-        </p>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-zinc-800/60">
-          <span className="text-xs text-zinc-600">
-            {new Date(task.auction_end_time).toLocaleDateString('en-US', {
-              month: 'short', day: 'numeric',
-            })}
-          </span>
-          <span className="text-xs font-semibold text-amber-400 group-hover:text-amber-300 transition-colors">
-            View &amp; bid →
-          </span>
+        {/* Timer */}
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+            Ends in
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            justifyContent: 'flex-end',
+          }}>
+            <svg width="12" height="12" fill="none" stroke={urgencyColor} strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            <span style={{ fontSize: 13, fontWeight: 700, color: urgencyColor }}>
+              {countdown.text}
+            </span>
+          </div>
+          {countdown.urgency === 'high' && countdown.text !== 'Ended' && (
+            <div style={{ fontSize: 10, color: urgencyColor, marginTop: 2, fontWeight: 600 }}>
+              Ending soon!
+            </div>
+          )}
         </div>
       </div>
-    </Link>
-  )
-}
+
+      <style>{`
+        @keyframes cardPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default TaskCard;

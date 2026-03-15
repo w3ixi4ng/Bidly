@@ -1,75 +1,54 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import React, { useState, useCallback, useMemo } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import Home from './pages/Home';
+import Tasks from './pages/Tasks';
+import TaskDetail from './pages/TaskDetail';
 
-import Navbar from './components/Navbar'
-import ProtectedRoute from './components/ProtectedRoute'
+// Lazy-load Stripe only when needed (avoids blocking initial page render)
+let stripePromise: ReturnType<typeof loadStripe> | null = null;
+function getStripe() {
+  if (!stripePromise) {
+    stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string);
+  }
+  return stripePromise;
+}
 
-import Home from './pages/Home'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
-import CreateTask from './pages/CreateTask'
-import TaskDetail from './pages/TaskDetail'
-import Chats from './pages/Chats'
-import ChatRoom from './pages/ChatRoom'
-import Profile from './pages/Profile'
+export const StripePreloadContext = React.createContext<{ preload: () => void }>({
+  preload: () => {},
+});
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
-})
+const StripeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [stripe, setStripe] = useState<ReturnType<typeof loadStripe> | null>(null);
 
-export default function App() {
+  const preload = useCallback(() => {
+    if (!stripe) setStripe(getStripe());
+  }, [stripe]);
+
+  const value = useMemo(() => ({ preload }), [preload]);
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <StripePreloadContext.Provider value={value}>
+      <Elements stripe={stripe}>
+        {children}
+      </Elements>
+    </StripePreloadContext.Provider>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <StripeProvider>
       <BrowserRouter>
-        <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route
-            path="/tasks/create"
-            element={
-              <ProtectedRoute>
-                <CreateTask />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tasks/:task_id"
-            element={
-              <ProtectedRoute>
-                <TaskDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chats"
-            element={
-              <ProtectedRoute>
-                <Chats />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chats/:chat_id"
-            element={
-              <ProtectedRoute>
-                <ChatRoom />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile/:user_id"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/:taskSlug" element={<TaskDetail />} />
         </Routes>
       </BrowserRouter>
-    </QueryClientProvider>
-  )
-}
+    </StripeProvider>
+  );
+};
+
+export default App;
