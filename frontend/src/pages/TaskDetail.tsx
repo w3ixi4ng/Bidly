@@ -334,6 +334,10 @@ const TaskDetail: React.FC = () => {
   // Freelancer marks task as completed → status to pending-review, sends message to client
   const handleMarkComplete = async () => {
     if (!task || !user) return;
+    if (!user.stripe_connected_account_id) {
+      setActionError('Please connect your Stripe account in your profile before submitting work.');
+      return;
+    }
     setActionLoading(true);
     setActionError('');
     try {
