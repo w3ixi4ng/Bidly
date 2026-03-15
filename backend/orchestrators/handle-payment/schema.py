@@ -19,3 +19,6 @@ class ReleasePaymentData(BaseModel):
     freelancer_id: str
     amount: float
     client_id: str
+
+class RefundPaymentData(BaseModel):
+    payment_id: str

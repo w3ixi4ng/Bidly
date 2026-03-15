@@ -2,11 +2,12 @@ import os
 from fastapi import FastAPI, HTTPException
 import stripe
 from dotenv import load_dotenv, find_dotenv
-from schema import ReleasePayment, CapturePayment, CreateConnectedAccount
+from schema import ReleasePayment, RefundPayment, CapturePayment, CreateConnectedAccount
 import uvicorn
 
 load_dotenv(find_dotenv())
 stripe.api_key = os.getenv("STRIPE_API_KEY")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 app = FastAPI()
@@ -34,9 +35,8 @@ def create_connected_account(data: CreateConnectedAccount):
 
     link = stripe.AccountLink.create(
         account=account["id"],
-        # In production, these URLs should be your actual frontend routes that handle the onboarding flow
-        refresh_url="https://yourapp.com/onboarding/retry",
-        return_url="https://yourapp.com/onboarding/complete",
+        refresh_url=f"{FRONTEND_URL}/tasks",
+        return_url=f"{FRONTEND_URL}/tasks",
         type="account_onboarding",
     )
 
@@ -91,11 +91,10 @@ def release_payment(data: ReleasePayment):
 
 
 @app.post("/payment/refund-payment")
-def refund_payment(data: ReleasePayment):
-    # Refund entire amount back to client
+def refund_payment(data: RefundPayment):
+    # Full refund back to client
     refund = stripe.Refund.create(
         payment_intent=data.payment_intent_id,
-        amount=int(data.amount * 100),  # Convert to cents
     )
 
     return {"refund_id": refund["id"]}

@@ -80,7 +80,7 @@ const AuthModal: React.FC = () => {
         email: form.email,
         stripe_connected_account_id: null,
       };
-      setAuth(user, result.access_token);
+      setAuth(user, result.access_token, result.refresh_token);
       connectSocket(result.user_id);
       await bootstrapAfterAuth(result.user_id);
       setAuthModalOpen(false);

@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from schema import ReleasePaymentData, StartPaymentData
+from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
 import service
 import stripe
 from dotenv import load_dotenv, find_dotenv
@@ -55,16 +55,10 @@ async def release_payment(payment_data: ReleasePaymentData):
             if not stripe_connected_account_id:
                 raise HTTPException(status_code=400, detail="Freelancer does not have a Stripe connected account")
 
-            # get payment intent id from payment log using payment_id
-            payment_log = service.get_payment_logs_by_payment_id(payment_data.payment_id)
-            payment_intent_id = payment_log.get("payment_intent_id")
-
-            if not payment_intent_id:
-                raise HTTPException(status_code=404, detail="Payment log not found")
-
+            # payment_id on the task is the Stripe payment_intent_id
             # call payment service to release payment to winner and refund remaining amount to client
             release_res = await client.post(f"{PAYMENT_URL}/payment/release-payment", json={
-                "payment_intent_id": payment_intent_id,
+                "payment_intent_id": payment_data.payment_id,
                 "stripe_connected_account_id": stripe_connected_account_id,
                 "amount": payment_data.amount,
             })
@@ -75,6 +69,24 @@ async def release_payment(payment_data: ReleasePaymentData):
 
     except HTTPException:
         raise
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/handle-payment/refund")
+async def refund_payment(payment_data: RefundPaymentData):
+    """Full refund of the captured payment back to the client."""
+    try:
+        async with httpx.AsyncClient() as client:
+            refund_res = await client.post(f"{PAYMENT_URL}/payment/refund-payment", json={
+                "payment_intent_id": payment_data.payment_id,
+            })
+            refund_res.raise_for_status()
+
+        return {"status": "refunded"}
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except Exception as e:

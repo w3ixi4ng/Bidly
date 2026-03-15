@@ -38,3 +38,11 @@ class SupabaseService:
     def get_tasks_by_payment_id(self, payment_id: str):
         response = self.client.schema("tasks").from_("tasks").select("*").eq("payment_id", payment_id).execute()
         return response.data
+
+    def get_tasks_by_client(self, client_id: str):
+        response = self.client.schema("tasks").from_("tasks").select("*").eq("client_id", client_id).execute()
+        return response.data
+
+    def get_tasks_by_freelancer(self, freelancer_id: str):
+        response = self.client.schema("tasks").from_("tasks").select("*").eq("freelancer_id", freelancer_id).execute()
+        return response.data

@@ -8,10 +8,6 @@ interface TaskCardProps {
   currentBid?: CurrentBid;
 }
 
-function toSlug(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
 function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'medium' | 'high' } {
   const diff = new Date(endTime).getTime() - Date.now();
   if (diff <= 0) return { text: 'Ended', urgency: 'high' };
@@ -78,7 +74,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
     high: '#ef4444',
   }[countdown.urgency];
 
-  const handleClick = () => navigate(`/${toSlug(task.title)}`);
+  const handleClick = () => navigate(`/task/${task.task_id}`);
 
   return (
     <div
