@@ -230,3 +230,5 @@ services:
       - "3000:3000"
     networks:
       - bidly-net
+    env_file:
+      - .env.frontend
