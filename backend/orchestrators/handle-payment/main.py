@@ -103,7 +103,7 @@ async def payment_success_web_hook(request: Request):
         if not service.get_payment_logs_by_payment_intent_id("payment_intent_id"):
             # create payment log
             service.post_payment_log({
-                "payment_intent_id": "payment_intent_id",
+                "payment_intent_id": event["data"]["object"]["id"],
                 "amount": event["data"]["object"]["amount"],
                 "payment_status": "captured",
                 "client_id": event["data"]["object"]["metadata"]["client_id"],
