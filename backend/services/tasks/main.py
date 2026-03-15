@@ -16,7 +16,7 @@ async def health_check():
 def get_tasks():
     tasks = supabase.get_tasks()
     if not tasks:
-        raise HTTPException(status_code=404, detail="No tasks found")
+        return TaskListResponse(tasks=[])
     return TaskListResponse(tasks=tasks)
 
 
@@ -66,6 +66,23 @@ def get_tasks_by_payment_id(payment_id: str):
     if not tasks:
         return TaskListResponse(tasks=[])
     return TaskListResponse(tasks=tasks)
+
+
+@app.get("/tasks/client/{client_id}", response_model=TaskListResponse, status_code=200)
+def get_tasks_by_client(client_id: str):
+    tasks = supabase.get_tasks_by_client(client_id)
+    if not tasks:
+        return TaskListResponse(tasks=[])
+    return TaskListResponse(tasks=tasks)
+
+
+@app.get("/tasks/freelancer/{freelancer_id}", response_model=TaskListResponse, status_code=200)
+def get_tasks_by_freelancer(freelancer_id: str):
+    tasks = supabase.get_tasks_by_freelancer(freelancer_id)
+    if not tasks:
+        return TaskListResponse(tasks=[])
+    return TaskListResponse(tasks=tasks)
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8005)
