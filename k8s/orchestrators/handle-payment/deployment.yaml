@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: handle-payment
+  namespace: bidly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: handle-payment
+  template:
+    metadata:
+      labels:
+        app: handle-payment
+    spec:
+      containers:
+        - name: handle-payment
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/handle-payment:latest
+          ports:
+            - containerPort: 8012
+          envFrom:
+            - secretRef:
+                name: stripe-secret

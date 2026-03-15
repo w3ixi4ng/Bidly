@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: start-auction
+  namespace: bidly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: start-auction
+  template:
+    metadata:
+      labels:
+        app: start-auction
+    spec:
+      containers:
+        - name: start-auction
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/start-auction:latest
+          # Pure RabbitMQ consumer — no HTTP port, no Service needed
+          # Connects outbound to rabbitmq:5672 and redis:6379

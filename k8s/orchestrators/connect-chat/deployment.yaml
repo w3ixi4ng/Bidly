@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connect-chat
+  namespace: bidly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: connect-chat
+  template:
+    metadata:
+      labels:
+        app: connect-chat
+    spec:
+      containers:
+        - name: connect-chat
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/connect-chat:latest
+          ports:
+            - containerPort: 8010
+          envFrom:
+            - secretRef:
+                name: supabase-secret

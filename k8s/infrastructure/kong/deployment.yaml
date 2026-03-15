@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+  namespace: bidly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kong
+  template:
+    metadata:
+      labels:
+        app: kong
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.6
+          env:
+            - name: KONG_DATABASE
+              value: "off"
+            - name: KONG_DECLARATIVE_CONFIG
+              value: /etc/kong/kong.yaml
+            - name: KONG_PROXY_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: /dev/stdout
+            - name: KONG_PROXY_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_ADMIN_ERROR_LOG
+              value: /dev/stderr
+            - name: KONG_ADMIN_LISTEN
+              value: "0.0.0.0:8001"
+          ports:
+            - containerPort: 8000  # proxy
+            - containerPort: 8001  # admin
+            - containerPort: 8443  # proxy SSL
+          volumeMounts:
+            - name: kong-config
+              mountPath: /etc/kong/kong.yaml
+              subPath: kong.yaml
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: kong-config
+          configMap:
+            name: kong-config
