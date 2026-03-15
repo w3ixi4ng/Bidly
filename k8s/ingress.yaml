@@ -4,6 +4,7 @@ metadata:
   name: bidly-ingress
   namespace: bidly
 spec:
+  ingressClassName: gce
   rules:
     - http:
         paths:

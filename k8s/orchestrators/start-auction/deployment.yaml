@@ -4,7 +4,7 @@ metadata:
   name: start-auction
   namespace: bidly
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: start-auction
