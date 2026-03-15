@@ -1,4 +1,6 @@
 import httpx
+import json
+import pika
 from fastapi import FastAPI, HTTPException, Request
 from schema import ReleasePaymentData, StartPaymentData
 import service
@@ -12,6 +14,14 @@ TEMP_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 PAYMENT_URL = "http://payment:8011"
 
 app = FastAPI()
+
+def get_rabbitmq_channel():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
+    channel = connection.channel()
+    channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
+    channel.queue_declare(queue="Create_Task", durable=True)
+    channel.queue_bind(exchange="bidly", queue="Create_Task", routing_key="create.task")
+    return connection, channel
 
 @app.post("/handle-payment/capture")
 async def capture_payment(payment_data: StartPaymentData):
@@ -110,6 +120,25 @@ async def payment_success_web_hook(request: Request):
             })
             pass
 
-        # publish rabbitmq message to create task 
-    
+        # publish rabbitmq message to create task
+        metadata = event["data"]["object"]["metadata"]
+        connection, channel = get_rabbitmq_channel()
+        channel.basic_publish(
+            exchange="bidly",
+            routing_key="create.task",
+            body=json.dumps({
+                "title": metadata.get("title"),
+                "description": metadata.get("description"),
+                "requirements": json.loads(metadata.get("requirements", "[]")),
+                "category": metadata.get("category", "Other"),
+                "client_id": metadata.get("client_id"),
+                "payment_id": event["data"]["object"]["id"],
+                "starting_bid": float(metadata.get("starting_bid", 0)),
+                "auction_start_time": metadata.get("auction_start_time"),
+                "auction_end_time": metadata.get("auction_end_time"),
+            }),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+        connection.close()
+
     return {"status": "success"}
