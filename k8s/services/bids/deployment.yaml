@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bids
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bids
+  template:
+    metadata:
+      labels:
+        app: bids
+    spec:
+      containers:
+        - name: bids
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/bids:latest
+          ports:
+            - containerPort: 8003
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          envFrom:
+            - secretRef:
+                name: supabase-secret
+

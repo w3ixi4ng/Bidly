@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: handle-payment
+  namespace: bidly
+spec:
+  selector:
+    app: handle-payment
+  ports:
+    - port: 8012
+      targetPort: 8012
