@@ -219,6 +219,8 @@ services:
       - "8008:8008"
     networks:
       - bidly-net
+    env_file:
+      - .env.twilio
   send-notifications:
     image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/send-notifications:latest
     build: ./backend/orchestrators/send-notification

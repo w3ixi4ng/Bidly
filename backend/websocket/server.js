@@ -5,7 +5,7 @@ const amqp = require('amqplib');
 
 const PORT = process.env.PORT || 8007;
 const RABBITMQ_HOST = process.env.RABBITMQ_HOST || 'rabbitmq';
-const RABBITMQ_PORT = process.env.RABBITMQ_PORT || 5672;
+const RABBITMQ_PORT = process.env.RABBITMQ_PORT_NUM || 5672;
 const EXCHANGE_NAME = 'bidly';
 
 const app = express();

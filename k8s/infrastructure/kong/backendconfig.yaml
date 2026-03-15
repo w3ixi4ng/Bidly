@@ -1,0 +1,10 @@
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: kong-backendconfig
+  namespace: bidly
+spec:
+  healthCheck:
+    requestPath: /status
+    port: 8001
+    type: HTTP
