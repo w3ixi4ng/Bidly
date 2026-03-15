@@ -55,6 +55,7 @@ const ProfileModal: React.FC = () => {
     setConnectError('');
     try {
       const { url, stripe_connected_account_id } = await createConnectedAccount(user.email);
+      await updateUser(user.user_id, { stripe_connected_account_id });
       patchUser({ stripe_connected_account_id });
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {

@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
-import { getCurrentBid, placeBid } from '../api/bids';
+import { getCurrentBidWithFallback, placeBid, getBidsByTask } from '../api/bids';
+import type { BidResponse } from '../api/bids';
 import { createChat, getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
-import { getTasks } from '../api/tasks';
+import { getTasks, updateTask } from '../api/tasks';
+import { releasePayment, refundPayment } from '../api/payment';
+import { sendMessage } from '../api/chatLogs';
 import { useChatStore } from '../store/chatStore';
 import { connectSocket, joinAuctionRoom } from '../socket/socket';
 import Navbar from '../components/Navbar';
@@ -17,10 +20,6 @@ import ChatPanel from '../components/ChatPanel';
 import AuthModal from '../components/AuthModal';
 import Skeleton from '../components/Skeleton';
 import type { Task } from '../types';
-
-function toSlug(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -50,14 +49,24 @@ function getStatusBadgeStyle(status: Task['auction_status']): React.CSSPropertie
       return { ...base, background: 'rgba(239,68,68,0.15)', color: '#dc2626' };
     case 'pending':
       return { ...base, background: 'rgba(234,179,8,0.15)', color: '#ca8a04' };
+    case 'pending-review':
+      return { ...base, background: 'rgba(249,115,22,0.15)', color: '#ea580c' };
+    case 'accepted':
+      return { ...base, background: 'rgba(34,197,94,0.15)', color: '#16a34a' };
+    case 'disputed':
+      return { ...base, background: 'rgba(239,68,68,0.15)', color: '#dc2626' };
     default:
       return { ...base, background: 'var(--bg-secondary)', color: 'var(--text-secondary)' };
   }
 }
 
 const TaskDetail: React.FC = () => {
-  const { taskSlug } = useParams<{ taskSlug: string }>();
+  const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navState = location.state as { from?: string; tab?: string } | null;
+  const fromDashboard = navState?.from === 'dashboard';
+  const dashboardTab = navState?.tab;
   const { tasks, setTasks, currentBids, setCurrentBid } = useTaskStore();
   const { user } = useAuthStore();
   const { profileModalOpen, addTaskModalOpen, authModalOpen, setAuthModalOpen } = useUIStore();
@@ -69,16 +78,31 @@ const TaskDetail: React.FC = () => {
   const [bidInput, setBidInput] = useState('');
   const [bidLoading, setBidLoading] = useState(false);
   const [bidError, setBidError] = useState('');
+  const [lowBidConfirm, setLowBidConfirm] = useState(false);
   const [auctionClosed, setAuctionClosed] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const [bidHistory, setBidHistory] = useState<BidResponse[]>([]);
+  const [bidHistoryLoading, setBidHistoryLoading] = useState(false);
+  const [bidderNames, setBidderNames] = useState<Record<string, string>>({});
+  const [winnerName, setWinnerName] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
 
-  const task = tasks.find((t) => toSlug(t.title) === taskSlug);
+  const task = tasks.find((t) => t.task_id === taskId);
   const currentBid = task ? currentBids[task.task_id] : undefined;
 
-  // Determine if auction is closed
+  // Determine if auction is closed (DB status OR time expired)
   useEffect(() => {
     if (!task) return;
-    if (task.auction_status === 'completed' || task.auction_status === 'cancelled') {
+    if (
+      task.auction_status === 'completed' ||
+      task.auction_status === 'cancelled' ||
+      task.auction_status === 'no-bids' ||
+      task.auction_status === 'pending-review' ||
+      task.auction_status === 'accepted' ||
+      task.auction_status === 'disputed' ||
+      new Date(task.auction_end_time).getTime() <= Date.now()
+    ) {
       setAuctionClosed(true);
     }
   }, [task]);
@@ -119,7 +143,7 @@ const TaskDetail: React.FC = () => {
     joinAuctionRoom(task.task_id);
 
     if (!currentBids[task.task_id]) {
-      getCurrentBid(task.task_id)
+      getCurrentBidWithFallback(task.task_id)
         .then((bid) => setCurrentBid(task.task_id, bid))
         .catch(() => {/* no bids yet is fine */});
     }
@@ -139,12 +163,57 @@ const TaskDetail: React.FC = () => {
       .finally(() => setLoadingClient(false));
   }, [task?.client_id, user?.user_id, user?.name]);
 
-  // Listen for auction ended via store change
+  // Listen for auction ended via store change or time expiry
   useEffect(() => {
-    if (task?.auction_status === 'completed') {
+    if (!task) return;
+    if (
+      task.auction_status === 'completed' ||
+      task.auction_status === 'no-bids' ||
+      task.auction_status === 'pending-review' ||
+      task.auction_status === 'accepted' ||
+      task.auction_status === 'disputed' ||
+      new Date(task.auction_end_time).getTime() <= Date.now()
+    ) {
       setAuctionClosed(true);
     }
-  }, [task?.auction_status]);
+  }, [task?.auction_status, task?.auction_end_time]);
+
+  // Fetch bid history
+  useEffect(() => {
+    if (!task) return;
+    setBidHistoryLoading(true);
+    getBidsByTask(task.task_id)
+      .then(async (bids) => {
+        // Sort newest first
+        bids.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setBidHistory(bids);
+
+        // Fetch unique bidder names
+        const ids = [...new Set(bids.map(b => b.bidder_id))];
+        const results = await Promise.allSettled(
+          ids.map(id => getUser(id).then(u => ({ id, name: u.name ?? u.email })))
+        );
+        const names: Record<string, string> = {};
+        results.forEach(r => { if (r.status === 'fulfilled') names[r.value.id] = r.value.name; });
+        setBidderNames(names);
+      })
+      .catch(() => {})
+      .finally(() => setBidHistoryLoading(false));
+  }, [task?.task_id]);
+
+  // Fetch winner name for closed auctions
+  useEffect(() => {
+    if (!task || !auctionClosed) return;
+    const winnerId = task.freelancer_id ?? currentBid?.bidder_id;
+    if (!winnerId) return;
+    if (winnerId === user?.user_id && user?.name) {
+      setWinnerName(user.name);
+      return;
+    }
+    getUser(winnerId)
+      .then(u => setWinnerName(u.name ?? u.email))
+      .catch(() => setWinnerName(winnerId));
+  }, [task?.freelancer_id, currentBid?.bidder_id, auctionClosed, user?.user_id, user?.name]);
 
   const validateBid = useCallback((): string => {
     const amount = Number(bidInput);
@@ -172,15 +241,8 @@ const TaskDetail: React.FC = () => {
     return false;
   };
 
-  const handlePlaceBid = async () => {
-    if (requireAuth()) return;
-    const errMsg = validateBid();
-    if (errMsg) {
-      setBidError(errMsg);
-      return;
-    }
+  const submitBid = async () => {
     if (!task || !user) return;
-
     setBidLoading(true);
     setBidError('');
     try {
@@ -192,11 +254,31 @@ const TaskDetail: React.FC = () => {
       });
       setCurrentBid(task.task_id, { bid_amount: Number(bidInput), bidder_id: user.user_id });
       setBidInput('');
+      setLowBidConfirm(false);
     } catch (err) {
       setBidError(err instanceof Error ? err.message : 'Failed to place bid.');
     } finally {
       setBidLoading(false);
     }
+  };
+
+  const handlePlaceBid = async () => {
+    if (requireAuth()) return;
+    const errMsg = validateBid();
+    if (errMsg) {
+      setBidError(errMsg);
+      return;
+    }
+    if (!task || !user) return;
+
+    const amount = Number(bidInput);
+    const reference = currentBid?.bid_amount ?? task.starting_bid;
+    if (amount <= reference * 0.8) {
+      setLowBidConfirm(true);
+      return;
+    }
+
+    await submitBid();
   };
 
   const isWinning =
@@ -228,6 +310,234 @@ const TaskDetail: React.FC = () => {
       /* silently fail */
     } finally {
       setChatLoading(false);
+    }
+  };
+
+  const isWinner = user != null && (
+    task?.freelancer_id === user.user_id ||
+    (auctionClosed && currentBid?.bidder_id === user.user_id)
+  );
+
+  // Helper: ensure a chat exists between two users, return the chat
+  const ensureChat = async (userId: string, otherId: string) => {
+    const existing = chats.find(
+      (c) =>
+        (c.user_1_id === userId && c.user_2_id === otherId) ||
+        (c.user_1_id === otherId && c.user_2_id === userId)
+    );
+    if (existing) return existing;
+    const chat = await createChat(userId, otherId);
+    upsertChat(chat);
+    return chat;
+  };
+
+  // Freelancer marks task as completed → status to pending-review, sends message to client
+  const handleMarkComplete = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await updateTask(task.task_id, { auction_status: 'pending-review' });
+      // Update local store
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'pending-review' });
+
+      // Send automated chat message to client with task link
+      const chat = await ensureChat(user.user_id, task.client_id);
+      const taskUrl = `${window.location.origin}/task/${task.task_id}`;
+      await sendMessage({
+        chat_id: chat.chat_id,
+        sender_id: user.user_id,
+        recipient_id: task.client_id,
+        message: `I've completed the work on "${task.title}". Please review and approve when you're satisfied.\n\nView task: ${taskUrl}`,
+      });
+
+      useUIStore.getState().addToast({
+        message: 'Work submitted! The client has been notified to review.',
+        type: 'success',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to mark as completed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Client approves work → status to accepted, triggers payment release
+  const handleAcceptDelivery = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const winnerId = task.freelancer_id ?? currentBid?.bidder_id;
+      const winningAmount = currentBid?.bid_amount ?? task.starting_bid;
+
+      if (!winnerId) {
+        setActionError('Could not determine the freelancer for this task.');
+        setActionLoading(false);
+        return;
+      }
+
+      // Release payment to freelancer
+      await releasePayment({
+        payment_id: task.payment_id,
+        freelancer_id: winnerId,
+        amount: winningAmount,
+        client_id: task.client_id,
+      });
+
+      // Update task status to accepted
+      await updateTask(task.task_id, { auction_status: 'accepted' });
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'accepted' });
+
+      // Notify freelancer via chat
+      const chat = await ensureChat(user.user_id, winnerId);
+      await sendMessage({
+        chat_id: chat.chat_id,
+        sender_id: user.user_id,
+        recipient_id: winnerId,
+        message: `I've approved the work for "${task.title}". Payment of $${winningAmount.toFixed(2)} has been released. Thank you for your work!`,
+      });
+
+      useUIStore.getState().addToast({
+        message: 'Work approved! Payment has been released to the freelancer.',
+        type: 'success',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to approve work.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Client disputes delivery → status to disputed, notifies freelancer
+  const handleDisputeDelivery = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const winnerId = task.freelancer_id ?? currentBid?.bidder_id;
+      if (!winnerId) {
+        setActionError('Could not determine the freelancer for this task.');
+        setActionLoading(false);
+        return;
+      }
+
+      await updateTask(task.task_id, { auction_status: 'disputed' });
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'disputed' });
+
+      // Notify freelancer via chat
+      const chat = await ensureChat(user.user_id, winnerId);
+      const taskUrl = `${window.location.origin}/task/${task.task_id}`;
+      await sendMessage({
+        chat_id: chat.chat_id,
+        sender_id: user.user_id,
+        recipient_id: winnerId,
+        message: `I've requested revisions for "${task.title}". Please review my feedback and resubmit when the changes are made.\n\nView task: ${taskUrl}`,
+      });
+
+      useUIStore.getState().addToast({
+        message: 'Revisions requested. The freelancer has been notified.',
+        type: 'warning',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to request revisions.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Freelancer resubmits after dispute → back to pending-review
+  const handleResubmit = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await updateTask(task.task_id, { auction_status: 'pending-review' });
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'pending-review' });
+
+      const chat = await ensureChat(user.user_id, task.client_id);
+      const taskUrl = `${window.location.origin}/task/${task.task_id}`;
+      await sendMessage({
+        chat_id: chat.chat_id,
+        sender_id: user.user_id,
+        recipient_id: task.client_id,
+        message: `I've made the requested changes for "${task.title}" and resubmitted for your review.\n\nView task: ${taskUrl}`,
+      });
+
+      useUIStore.getState().addToast({
+        message: 'Work resubmitted for review. The client has been notified.',
+        type: 'success',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to resubmit.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Client rejects work and cancels the task → refund to client, notify freelancer
+  const handleRejectAndCancel = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const winnerId = task.freelancer_id ?? currentBid?.bidder_id;
+
+      // Refund the full amount back to the client's card
+      await refundPayment(task.payment_id);
+
+      await updateTask(task.task_id, { auction_status: 'cancelled' });
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'cancelled' });
+
+      if (winnerId) {
+        const chat = await ensureChat(user.user_id, winnerId);
+        await sendMessage({
+          chat_id: chat.chat_id,
+          sender_id: user.user_id,
+          recipient_id: winnerId,
+          message: `The task "${task.title}" has been cancelled and closed. The full amount will be refunded to my card.`,
+        });
+      }
+
+      useUIStore.getState().addToast({
+        message: 'Task cancelled. The full amount will be refunded to your card.',
+        type: 'success',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to cancel task.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Freelancer abandons the task → refund client, notify client
+  const handleAbandonTask = async () => {
+    if (!task || !user) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      // Refund the full amount back to the client's card
+      await refundPayment(task.payment_id);
+
+      await updateTask(task.task_id, { auction_status: 'cancelled' });
+      useTaskStore.getState().upsertTask({ ...task, auction_status: 'cancelled' });
+
+      const chat = await ensureChat(user.user_id, task.client_id);
+      await sendMessage({
+        chat_id: chat.chat_id,
+        sender_id: user.user_id,
+        recipient_id: task.client_id,
+        message: `I'm unable to fulfil the task "${task.title}" and have withdrawn. The full amount will be refunded to your card.`,
+      });
+
+      useUIStore.getState().addToast({
+        message: 'You have withdrawn from this task. The client has been notified.',
+        type: 'warning',
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to withdraw from task.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -269,10 +579,10 @@ const TaskDetail: React.FC = () => {
         {/* Back link */}
         <button
           className="btn btn-ghost"
-          onClick={() => navigate('/tasks')}
+          onClick={() => fromDashboard ? navigate('/dashboard', { state: { tab: dashboardTab } }) : navigate('/tasks')}
           style={{ marginBottom: 20, fontSize: 14, padding: '6px 0' }}
         >
-          ← Back to Tasks
+          {fromDashboard ? '← Back to Dashboard' : '← Back to Tasks'}
         </button>
 
         <div
@@ -287,21 +597,50 @@ const TaskDetail: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Title + status */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
-              <h1
-                style={{
-                  fontSize: 'clamp(24px, 3vw, 36px)',
-                  fontWeight: 800,
-                  color: 'var(--text-primary)',
-                  lineHeight: 1.2,
-                  flex: 1,
-                  minWidth: 200,
-                }}
-              >
-                {task.title}
-              </h1>
-              <span style={getStatusBadgeStyle(task.auction_status)}>
-                {task.auction_status}
-              </span>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <h1
+                  style={{
+                    fontSize: 'clamp(24px, 3vw, 36px)',
+                    fontWeight: 800,
+                    color: 'var(--text-primary)',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {task.title}
+                </h1>
+                {task.category && (
+                  <span style={{
+                    display: 'inline-block', marginTop: 8,
+                    padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    background: {
+                      Design: 'rgba(236,72,153,0.12)', Development: 'rgba(59,130,246,0.12)',
+                      Writing: 'rgba(234,179,8,0.12)', Marketing: 'rgba(34,197,94,0.12)',
+                      Other: 'rgba(156,163,175,0.12)',
+                    }[task.category] ?? 'rgba(156,163,175,0.12)',
+                    color: {
+                      Design: '#db2777', Development: '#2563eb',
+                      Writing: '#ca8a04', Marketing: '#16a34a',
+                      Other: '#6b7280',
+                    }[task.category] ?? '#6b7280',
+                    letterSpacing: '0.3px',
+                  }}>
+                    {task.category}
+                  </span>
+                )}
+              </div>
+              {(() => {
+                const displayStatus = auctionClosed && task.auction_status === 'in-progress' ? 'completed' : task.auction_status;
+                const labels: Record<string, string> = {
+                  'pending': 'Pending', 'in-progress': 'In Progress', 'completed': 'Completed',
+                  'cancelled': 'Cancelled', 'no-bids': 'No Bids',
+                  'pending-review': 'Pending Review', 'accepted': 'Accepted', 'disputed': 'Revisions Requested',
+                };
+                return (
+                  <span style={getStatusBadgeStyle(displayStatus)}>
+                    {labels[displayStatus] ?? displayStatus}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Description */}
@@ -425,6 +764,78 @@ const TaskDetail: React.FC = () => {
                 {chatLoading ? <span className="spinner" /> : 'Message Client'}
               </button>
             )}
+
+            {/* Bid History */}
+            <div
+              style={{
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius)',
+                padding: '20px',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Bid History ({bidHistory.length})
+              </div>
+              {bidHistoryLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                      <Skeleton variant="text" width="120px" height="14px" />
+                      <Skeleton variant="text" width="80px" height="14px" />
+                    </div>
+                  ))}
+                </div>
+              ) : bidHistory.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '12px 0' }}>
+                  No bids have been placed yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {bidHistory.map((bid, i) => (
+                    <div
+                      key={bid.bid_id ?? i}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 0',
+                        borderBottom: i < bidHistory.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {i === 0 && (
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: '#6366f1', boxShadow: '0 0 6px #6366f1',
+                            display: 'inline-block', flexShrink: 0,
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: 13, fontWeight: i === 0 ? 700 : 500,
+                          color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        }}>
+                          {bidderNames[bid.bidder_id] ?? bid.bidder_id.slice(0, 8) + '...'}
+                          {bid.bidder_id === user?.user_id && (
+                            <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4, fontWeight: 700 }}>(you)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 700,
+                          color: i === 0 ? '#6366f1' : 'var(--text-primary)',
+                          fontFamily: "'Space Grotesk', sans-serif",
+                        }}>
+                          ${bid.bid_amount.toFixed(2)}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
+                          {new Date(bid.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right column — Bid Panel */}
@@ -441,24 +852,24 @@ const TaskDetail: React.FC = () => {
                 gap: 18,
               }}
             >
-              {/* Current bid display */}
+              {/* Bid display */}
               <div>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                  Current Bid
+                  {auctionClosed ? 'Final Bid' : 'Current Bid'}
                 </div>
                 <div style={{ fontSize: 36, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>
                   {currentBid?.bid_amount != null && currentBid?.bidder_id != null
                     ? `$${currentBid.bid_amount.toFixed(2)}`
-                    : 'No bids yet'}
+                    : 'No bids'}
                 </div>
-                {(currentBid?.bidder_id == null) && (
+                {!auctionClosed && currentBid?.bidder_id == null && (
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
                     Starting at ${task.starting_bid.toFixed(2)}
                   </div>
                 )}
               </div>
 
-              {/* Winning badge */}
+              {/* Winning badge — only while auction is live */}
               {isWinning && !auctionClosed && (
                 <div
                   style={{
@@ -478,22 +889,261 @@ const TaskDetail: React.FC = () => {
 
               {/* Auction closed state */}
               {auctionClosed ? (
-                <div
-                  style={{
-                    padding: '16px',
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 10,
-                    textAlign: 'center',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    Auction Closed
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                    This auction has ended.
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                  {/* Status-specific panels */}
+                  {task.auction_status === 'accepted' ? (
+                    /* ── Accepted / Payment Released ── */
+                    <div style={{
+                      padding: '20px', borderRadius: 12, textAlign: 'center',
+                      background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                    }}>
+                      <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                      <div style={{ fontWeight: 700, color: '#16a34a', marginBottom: 4, fontSize: 15 }}>
+                        Work Approved
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        Payment of <strong>${(currentBid?.bid_amount ?? task.starting_bid).toFixed(2)}</strong> has been released to the freelancer.
+                      </div>
+                    </div>
+
+                  ) : task.auction_status === 'pending-review' ? (
+                    /* ── Pending Review ── */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{
+                        padding: '16px', borderRadius: 12, textAlign: 'center',
+                        background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)',
+                      }}>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+                        <div style={{ fontWeight: 700, color: '#ea580c', marginBottom: 4, fontSize: 15 }}>
+                          Awaiting Review
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {isOwner
+                            ? 'The freelancer has submitted their work. Review and approve, or request revisions.'
+                            : isWinner
+                              ? 'Your work has been submitted. Waiting for the client to review.'
+                              : 'The freelancer has submitted their work for client review.'}
+                        </div>
+                      </div>
+
+                      {/* Client: Accept / Request Revisions / Reject buttons */}
+                      {isOwner && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            onClick={handleAcceptDelivery}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                              background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                              color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            {actionLoading ? 'Processing...' : 'Approve & Release Payment'}
+                          </button>
+                          <button
+                            onClick={handleDisputeDelivery}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10,
+                              border: '1px solid rgba(249,115,22,0.3)',
+                              background: 'rgba(249,115,22,0.08)',
+                              color: '#ea580c', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            Request Revisions
+                          </button>
+                          <button
+                            onClick={handleRejectAndCancel}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10,
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              background: 'rgba(239,68,68,0.08)',
+                              color: '#dc2626', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            Reject & Cancel Task
+                          </button>
+                          {actionError && (
+                            <span className="error-msg" style={{ textAlign: 'center' }}>{actionError}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                  ) : task.auction_status === 'disputed' ? (
+                    /* ── Disputed / Revisions Requested ── */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{
+                        padding: '16px', borderRadius: 12, textAlign: 'center',
+                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                      }}>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>🔄</div>
+                        <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: 4, fontSize: 15 }}>
+                          Revisions Requested
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {isWinner
+                            ? 'The client has requested changes. Please review their feedback in the chat and resubmit when ready.'
+                            : isOwner
+                              ? 'You\'ve requested revisions. Waiting for the freelancer to resubmit.'
+                              : 'The client has requested revisions from the freelancer.'}
+                        </div>
+                      </div>
+
+                      {/* Freelancer: Resubmit / Withdraw buttons */}
+                      {isWinner && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            onClick={handleResubmit}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                              color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            {actionLoading ? 'Submitting...' : 'Resubmit for Review'}
+                          </button>
+                          <button
+                            onClick={handleAbandonTask}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10,
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              background: 'rgba(239,68,68,0.08)',
+                              color: '#dc2626', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            Unable to Fulfil
+                          </button>
+                          {actionError && (
+                            <span className="error-msg" style={{ textAlign: 'center' }}>{actionError}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Client: Reject & Cancel in disputed state */}
+                      {isOwner && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            onClick={handleRejectAndCancel}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10,
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              background: 'rgba(239,68,68,0.08)',
+                              color: '#dc2626', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            Reject & Cancel Task
+                          </button>
+                          {actionError && (
+                            <span className="error-msg" style={{ textAlign: 'center' }}>{actionError}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                  ) : (
+                    /* ── Default closed state (completed / no-bids / cancelled) ── */
+                    <>
+                      <div
+                        style={{
+                          padding: '16px',
+                          background: 'var(--bg-secondary)',
+                          borderRadius: 10,
+                          textAlign: 'center',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>🔒</div>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                          Auction Closed
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          This auction has ended.
+                        </div>
+                      </div>
+
+                      {/* Winner or no-bids info */}
+                      {task.auction_status === 'no-bids' || (currentBid?.bidder_id == null && currentBid?.bid_amount == null) ? (
+                        <div style={{
+                          padding: '12px 14px', borderRadius: 10, textAlign: 'center',
+                          background: 'rgba(156,163,175,0.08)', border: '1px solid rgba(156,163,175,0.2)',
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280' }}>
+                            No one bid on this task
+                          </div>
+                        </div>
+                      ) : winnerName ? (
+                        <div style={{
+                          padding: '12px 14px', borderRadius: 10,
+                          background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        }}>
+                          <svg width="16" height="16" fill="none" stroke="#16a34a" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                            Won by {winnerName}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {/* Freelancer: Mark as Completed / Unable to Fulfil buttons */}
+                      {isWinner && (task.auction_status === 'completed' || (task.auction_status === 'in-progress' && auctionClosed)) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button
+                            onClick={handleMarkComplete}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                              color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            {actionLoading ? 'Submitting...' : 'Mark as Completed'}
+                          </button>
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.5 }}>
+                            This will notify the client to review your work and release payment.
+                          </p>
+                          <button
+                            onClick={handleAbandonTask}
+                            disabled={actionLoading}
+                            style={{
+                              width: '100%', padding: '12px', borderRadius: 10,
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              background: 'rgba(239,68,68,0.08)',
+                              color: '#dc2626', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                              opacity: actionLoading ? 0.6 : 1,
+                              transition: 'opacity 0.2s',
+                            }}
+                          >
+                            Unable to Fulfil
+                          </button>
+                          {actionError && (
+                            <span className="error-msg" style={{ textAlign: 'center' }}>{actionError}</span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ) : !user ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
@@ -573,6 +1223,43 @@ const TaskDetail: React.FC = () => {
       {user && addTaskModalOpen && <AddTaskModal />}
       {user && <ChatPanel />}
       {authModalOpen && <AuthModal />}
+
+      {/* Low bid confirmation modal */}
+      {lowBidConfirm && (
+        <div className="modal-overlay" onClick={() => setLowBidConfirm(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+                Unusually Low Bid
+              </h3>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
+                Your bid of <strong style={{ color: 'var(--text-primary)' }}>${Number(bidInput).toFixed(2)}</strong> is
+                significantly lower than the current {currentBid?.bid_amount != null ? 'bid' : 'starting price'} of{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>${(currentBid?.bid_amount ?? task!.starting_bid).toFixed(2)}</strong>.
+                Are you sure you want to proceed?
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setLowBidConfirm(false)}
+                  style={{ flex: 1, padding: '10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={submitBid}
+                  disabled={bidLoading}
+                  style={{ flex: 1, padding: '10px' }}
+                >
+                  {bidLoading ? <span className="spinner" /> : 'Confirm Bid'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

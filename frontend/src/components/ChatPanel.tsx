@@ -7,6 +7,17 @@ import { getChatMessages, sendMessage } from '../api/chatLogs';
 import { getUser } from '../api/users';
 import Skeleton from './Skeleton';
 
+function linkify(text: string): React.ReactNode {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    urlRegex.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{part}</a>
+      : part
+  );
+}
+
 const LIST_WIDTH = 320;
 const THREAD_WIDTH = 360;
 const LIST_HEIGHT = 480;
@@ -291,7 +302,7 @@ const ChatPanel: React.FC = () => {
                       color: isMine ? 'white' : textPrimary,
                       fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
                     }}>
-                      {msg.message}
+                      {linkify(msg.message)}
                     </div>
                   </div>
                 );

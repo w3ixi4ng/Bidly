@@ -88,6 +88,25 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail=f"Login failed: {str(e)}")
 
 
+@app.post("/users/auth/refresh")
+async def refresh_token(body: dict):
+    token = body.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=400, detail="refresh_token is required")
+    try:
+        session = supabase_auth.refresh_session(token)
+        if not session:
+            raise HTTPException(status_code=401, detail="Failed to refresh token")
+        return {
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Failed to refresh token: {str(e)}")
+
+
 @app.get("/users", response_model=list[UserResponse])
 async def get_all_users():
     users = supabase_auth.get_all_users()

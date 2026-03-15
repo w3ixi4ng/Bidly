@@ -19,7 +19,7 @@ export interface Task {
   starting_bid: number;
   auction_start_time: string;
   auction_end_time: string;
-  auction_status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'no-bids';
+  auction_status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'no-bids' | 'pending-review' | 'accepted' | 'disputed';
 }
 
 export interface Bid {

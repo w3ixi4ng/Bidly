@@ -80,5 +80,13 @@ def get_bids_by_task(task_id: str):
     return BidListResponse(bids=bids)
 
 
+@app.get("/bids/user/{bidder_id}", response_model=BidListResponse, status_code=200)
+def get_bids_by_user(bidder_id: str):
+    bids = supabase.get_bids_by_user(bidder_id)
+    if not bids:
+        return BidListResponse(bids=[])
+    return BidListResponse(bids=bids)
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8003)

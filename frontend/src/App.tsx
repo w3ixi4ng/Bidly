@@ -5,6 +5,8 @@ import { Elements } from '@stripe/react-stripe-js';
 import Home from './pages/Home';
 import Tasks from './pages/Tasks';
 import TaskDetail from './pages/TaskDetail';
+import Dashboard from './pages/Dashboard';
+import ToastContainer from './components/ToastContainer';
 
 // Lazy-load Stripe only when needed (avoids blocking initial page render)
 let stripePromise: ReturnType<typeof loadStripe> | null = null;
@@ -41,10 +43,12 @@ const App: React.FC = () => {
   return (
     <StripeProvider>
       <BrowserRouter>
+        <ToastContainer />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />
-          <Route path="/:taskSlug" element={<TaskDetail />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/task/:taskId" element={<TaskDetail />} />
         </Routes>
       </BrowserRouter>
     </StripeProvider>

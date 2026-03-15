@@ -21,3 +21,6 @@ class ReleasePayment(BaseModel):
     payment_intent_id: str
     stripe_connected_account_id: str
     amount: float
+
+class RefundPayment(BaseModel):
+    payment_intent_id: str

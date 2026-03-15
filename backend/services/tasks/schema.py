@@ -43,6 +43,6 @@ class TaskUpdate(BaseModel):
     category: Optional[CATEGORY_LITERAL] = None
     freelancer_id: Optional[str] = None
     payment_id: Optional[str] = None
-    auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids"]] = None
+    auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids", "pending-review", "accepted", "disputed"]] = None
     auction_start_time: Optional[AwareDatetime] = None
     auction_end_time: Optional[AwareDatetime] = None
