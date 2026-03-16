@@ -16,7 +16,8 @@ exchanges = [
 # queues bound to "bidly" topic exchange
 bidly_queues = [
     {"name": "Start_Auction", "routing_key": "start.auction"},
-    {"name": "Create_Task", "routing_key": "create.task"},
+    # {"name": "Create_Task", "routing_key": "create.task"}, this queue is not needed, 
+    # as handle-payment service will directly call payment service to create payment intent without going through rabbitmq
 
     {"name": "Process_Winner", "routing_key": "process.winner"},
     {"name": "End_Auction_WebSocket", "routing_key": "process.winner"},

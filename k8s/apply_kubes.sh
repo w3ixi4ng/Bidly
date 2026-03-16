@@ -18,6 +18,9 @@ kubectl create secret generic stripe-secret --from-env-file="$ROOT_DIR/.env.stri
 kubectl create secret generic firebase-secret --from-env-file="$ROOT_DIR/.env.firebase" -n bidly --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic twilio-secret --from-env-file="$ROOT_DIR/.env.twilio" -n bidly --dry-run=client -o yaml | kubectl apply -f -
 
+echo "==> Applying shared configmap..."
+kubectl apply -f "$K8S_DIR/configmap.yaml"
+
 echo "==> Applying infrastructure..."
 kubectl apply -R -f "$K8S_DIR/infrastructure/"
 

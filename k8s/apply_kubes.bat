@@ -21,6 +21,10 @@ if errorlevel 1 exit /b 1
 kubectl create secret generic twilio-secret --from-env-file="%ROOT_DIR%\.env.twilio" -n bidly --dry-run=client -o yaml | kubectl apply -f -
 if errorlevel 1 exit /b 1
 
+echo ==> Applying shared configmap...
+kubectl apply -f "%K8S_DIR%configmap.yaml"
+if errorlevel 1 exit /b 1
+
 echo ==> Applying infrastructure...
 kubectl apply -R -f "%K8S_DIR%infrastructure"
 if errorlevel 1 exit /b 1
