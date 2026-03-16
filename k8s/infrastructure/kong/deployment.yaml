@@ -35,6 +35,10 @@ spec:
             - containerPort: 8000  # proxy
             - containerPort: 8001  # admin
             - containerPort: 8443  # proxy SSL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 640Mi
           volumeMounts:
             - name: kong-config
               mountPath: /etc/kong/kong.yaml

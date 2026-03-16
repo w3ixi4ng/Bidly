@@ -128,6 +128,12 @@ def on_bid_outbid_message(ch, method, properties, body):
 connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
 channel = connection.channel()
 
+channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
+channel.queue_declare(queue="End_Auction_Notifications", durable=True)
+channel.queue_bind(exchange="bidly", queue="End_Auction_Notifications", routing_key="end.auction.notifications")
+channel.queue_declare(queue="Out_Bidded_Notifications", durable=True)
+channel.queue_bind(exchange="bidly", queue="Out_Bidded_Notifications", routing_key="out.bidded.notifications")
+
 channel.basic_qos(prefetch_count=10)
 channel.basic_consume(queue="End_Auction_Notifications", on_message_callback=on_auction_end_message, auto_ack=False)
 channel.basic_consume(queue="Out_Bidded_Notifications", on_message_callback=on_bid_outbid_message, auto_ack=False)

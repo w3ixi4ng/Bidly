@@ -9,6 +9,9 @@ import rabbitmq_publish
 connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
 channel = connection.channel()
 
+channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
+channel.queue_declare(queue="Process_Winner", durable=True)
+channel.queue_bind(exchange="bidly", queue="Process_Winner", routing_key="process.winner")
 
 
 def process_winner(ch, method, properties, body):
