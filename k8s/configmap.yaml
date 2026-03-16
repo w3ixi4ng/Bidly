@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bidly-config
+  namespace: bidly
+data:
+  FRONTEND_URL: "https://bidly-esd.vercel.app"

@@ -1,7 +1,5 @@
 import httpx
 import logging
-import json
-import pika
 from fastapi import FastAPI, HTTPException, Request
 from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
 import stripe
@@ -18,14 +16,6 @@ CREATE_TASK_URL = "http://create-task:8009"
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-
-def get_rabbitmq_channel():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
-    channel = connection.channel()
-    channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
-    channel.queue_declare(queue="Create_Task", durable=True)
-    channel.queue_bind(exchange="bidly", queue="Create_Task", routing_key="create.task")
-    return connection, channel
 
 @app.post("/handle-payment/capture")
 async def capture_payment(payment_data: StartPaymentData):
