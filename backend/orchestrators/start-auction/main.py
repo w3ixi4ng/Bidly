@@ -8,6 +8,14 @@ import json
 connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
 channel = connection.channel()
 
+channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
+channel.queue_declare(queue="Start_Auction", durable=True)
+channel.queue_bind(exchange="bidly", queue="Start_Auction", routing_key="start.auction")
+channel.queue_declare(queue="auction_in_progress", durable=True, arguments={
+    "x-dead-letter-exchange": "bidly",
+    "x-dead-letter-routing-key": "process.winner",
+})
+
 
 def start_auction(ch, method, properties, body):
     try:

@@ -34,6 +34,3 @@ def post_payment_log(payment_log_data):
         return response.json()
     else:
         raise Exception("Failed to create payment log")
-    
-# get_stripe_account_id("5f06cdbd-bd66-4def-a0b4-337b49ecb16b")
-get_payment_logs_by_payment_intent_id("TET")

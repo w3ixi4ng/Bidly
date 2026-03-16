@@ -19,6 +19,10 @@ async def setup_rabbitmq():
     rabbitmq_connection = await aio_pika.connect_robust("amqp://rabbitmq")
     channel = await rabbitmq_connection.channel()
     bidly_exchange = await channel.declare_exchange("bidly", aio_pika.ExchangeType.TOPIC, durable=True)
+    await channel.declare_queue("auction_pending", durable=True, arguments={
+        "x-dead-letter-exchange": "bidly",
+        "x-dead-letter-routing-key": "start.auction",
+    })
 
 
 @asynccontextmanager

@@ -5,11 +5,12 @@ metadata:
   namespace: bidly
   annotations:
     kubernetes.io/ingress.class: "gce"
-    # SSL termination — uncomment when domain is ready:
-    # networking.gke.io/managed-certificates: bidly-cert
+    networking.gke.io/managed-certificates: bidly-cert
+    kubernetes.io/ingress.global-static-ip-name: "bidly-ingress-ip"
 spec:
   rules:
-    - http:
+    - host: bidly-backend.com  
+      http:
         paths:
           - path: /
             pathType: Prefix

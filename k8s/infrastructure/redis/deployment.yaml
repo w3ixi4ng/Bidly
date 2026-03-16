@@ -5,6 +5,8 @@ metadata:
   namespace: bidly
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: redis
@@ -19,6 +21,10 @@ spec:
           command: ["redis-server", "--appendonly", "yes", "--appendfilename", "redis_data.aof", "--dir", "/data"]
           ports:
             - containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
           volumeMounts:
             - name: redis-data
               mountPath: /data

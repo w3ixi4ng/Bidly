@@ -1,11 +1,8 @@
-# Uncomment and apply when domain is ready, then uncomment the annotation in ingress.yaml
-# kubectl apply -f k8s/managed-certificate.yaml
-#
-# apiVersion: networking.gke.io/v1
-# kind: ManagedCertificate
-# metadata:
-#   name: bidly-cert
-#   namespace: bidly
-# spec:
-#   domains:
-#     - yourdomain.com
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: bidly-cert
+  namespace: bidly
+spec:
+  domains:
+    - bidly-backend.com

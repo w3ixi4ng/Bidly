@@ -16,12 +16,13 @@ spec:
       containers:
         - name: chats
           image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/chats:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8006
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: 50m
+              memory: 128Mi
           envFrom:
             - secretRef:
                 name: supabase-secret
