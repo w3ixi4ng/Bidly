@@ -43,6 +43,36 @@ def create_connected_account(data: CreateConnectedAccount):
     return {"url": link["url"], "stripe_connected_account_id": account["id"]}      
 
 
+@app.get("/payment/account-status/{account_id}")
+def get_account_status(account_id: str):
+    """Check if a connected account has completed onboarding."""
+    try:
+        account = stripe.Account.retrieve(account_id)
+        return {
+            "account_id": account["id"],
+            "charges_enabled": account["charges_enabled"],
+            "payouts_enabled": account["payouts_enabled"],
+            "details_submitted": account["details_submitted"],
+        }
+    except stripe.error.InvalidRequestError:
+        raise HTTPException(status_code=404, detail="Connected account not found")
+
+
+@app.post("/payment/onboarding-link/{account_id}")
+def create_onboarding_link(account_id: str):
+    """Create a new onboarding link for an existing connected account."""
+    try:
+        link = stripe.AccountLink.create(
+            account=account_id,
+            refresh_url=f"{FRONTEND_URL}/tasks",
+            return_url=f"{FRONTEND_URL}/tasks",
+            type="account_onboarding",
+        )
+        return {"url": link["url"]}
+    except stripe.error.InvalidRequestError:
+        raise HTTPException(status_code=404, detail="Connected account not found")
+
+
 @app.post("/payment/capture-payment")
 def capture_payment_intent(payment_data: CapturePayment):
     payment_intent = stripe.PaymentIntent.create(

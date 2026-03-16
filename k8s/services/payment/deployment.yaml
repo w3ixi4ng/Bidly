@@ -26,3 +26,5 @@ spec:
           envFrom:
             - secretRef:
                 name: stripe-secret
+            - configMapRef:
+                name: bidly-config

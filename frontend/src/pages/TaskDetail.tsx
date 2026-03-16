@@ -9,7 +9,7 @@ import { createChat, getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
 import { getTasks, updateTask } from '../api/tasks';
-import { releasePayment, refundPayment } from '../api/payment';
+import { releasePayment, refundPayment, getAccountStatus } from '../api/payment';
 import { sendMessage } from '../api/chatLogs';
 import { useChatStore } from '../store/chatStore';
 import { connectSocket, joinAuctionRoom } from '../socket/socket';
@@ -339,6 +339,19 @@ const TaskDetail: React.FC = () => {
       return;
     }
     setActionLoading(true);
+    setActionError('');
+    try {
+      const status = await getAccountStatus(user.stripe_connected_account_id);
+      if (!status.charges_enabled) {
+        setActionError('Your Stripe account onboarding is incomplete. Please finish setting up your Stripe account in your profile before submitting work.');
+        setActionLoading(false);
+        return;
+      }
+    } catch {
+      setActionError('Unable to verify your Stripe account status. Please try again.');
+      setActionLoading(false);
+      return;
+    }
     setActionError('');
     try {
       await updateTask(task.task_id, { auction_status: 'pending-review' });
