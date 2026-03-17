@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { disconnectSocket } from '../socket/socket';
@@ -27,6 +27,8 @@ const HammerIcon = () => (
 
 const Navbar: React.FC = () => {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const onDashboard = pathname === '/dashboard';
   const { user, logout, isAuthenticated } = useAuthStore();
   const { setProfileModalOpen, setAuthModalOpen, isDark } = useUIStore();
   const [logoutHover, setLogoutHover] = useState(false);
@@ -86,9 +88,9 @@ const Navbar: React.FC = () => {
 
         {isAuthenticated ? (
           <>
-            {/* Dashboard link */}
+            {/* Dashboard / Tasks link */}
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(onDashboard ? '/tasks' : '/dashboard')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 14px',
@@ -108,13 +110,19 @@ const Navbar: React.FC = () => {
                 (e.currentTarget as HTMLButtonElement).style.borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
               }}
             >
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              Dashboard
+              {onDashboard ? (
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              )}
+              {onDashboard ? 'Tasks' : 'Dashboard'}
             </button>
 
             {/* Profile button */}
