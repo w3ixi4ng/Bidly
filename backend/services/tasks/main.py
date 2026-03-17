@@ -60,13 +60,6 @@ def delete_task(task_id: str):
     return {"message": "Task deleted successfully"}
 
 
-@app.get("/tasks/payment_id/{payment_id}", response_model=TaskListResponse, status_code=200)
-def get_tasks_by_payment_id(payment_id: str):
-    tasks = supabase.get_tasks_by_payment_id(payment_id)
-    if not tasks:
-        return TaskListResponse(tasks=[])
-    return TaskListResponse(tasks=tasks)
-
 
 @app.get("/tasks/client/{client_id}", response_model=TaskListResponse, status_code=200)
 def get_tasks_by_client(client_id: str):
