@@ -5,6 +5,7 @@ from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
 import stripe
 from dotenv import load_dotenv, find_dotenv
 import os
+from service import post_payment_log
 
 load_dotenv(find_dotenv())
 stripe.api_key = os.getenv("STRIPE_API_KEY")
@@ -126,6 +127,18 @@ async def stripe_webhook(request: Request):
         # Only process if this PaymentIntent has our task metadata
         if not metadata.get("client_id") or not metadata.get("title"):
             return {"status": "ignored", "reason": "not a task payment"}
+
+        # Log payment to OutSystems
+        try:
+            post_payment_log({
+                "payment_intent_id": payment_intent["id"],
+                "amount": payment_intent["amount"] / 100,  # convert cents to dollars
+                "client_id": metadata["client_id"],
+                "freelancer_id": None,
+                "payment_status": "captured",
+            })
+        except Exception as e:
+            logger.error(f"Webhook: failed to log payment: {e}")
 
         # Call create-task orchestrator (its idempotency check prevents duplicates)
         try:
