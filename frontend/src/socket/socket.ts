@@ -87,10 +87,17 @@ export function connectSocket(userId: string): void {
   );
 
   socket.on('task_started', (data: { task_id: string }) => {
-    useTaskStore.getState().upsertTask({
-      ...useTaskStore.getState().tasks.find(t => t.task_id === data.task_id)!,
-      auction_status: 'in-progress',
-    });
+    const taskStore = useTaskStore.getState();
+    const existing = taskStore.tasks.find(t => t.task_id === data.task_id);
+    if (existing) {
+      taskStore.upsertTask({ ...existing, auction_status: 'in-progress' });
+    } else {
+      import('../api/tasks').then(({ getTask }) => {
+        getTask(data.task_id)
+          .then(task => taskStore.upsertTask({ ...task, auction_status: 'in-progress' }))
+          .catch(() => {});
+      });
+    }
   });
 
   socket.on('auction_ended', (data: { task_id: string }) => {
