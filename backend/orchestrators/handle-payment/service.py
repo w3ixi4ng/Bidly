@@ -29,8 +29,7 @@ def get_payment_logs_by_payment_id(payment_id):
 def post_payment_log(payment_log_data):
     # Make a request to the payment service to create a new payment log
     response = requests.post("https://personal-yzh5fzm9.outsystemscloud.com/Payments/rest/OutPaymentsAPI/PostPayments", json=payment_log_data)
-    if response.status_code == 201:
-        print(response.json())
+    if response.status_code in (200, 201):
         return response.json()
     else:
-        raise Exception("Failed to create payment log")
+        raise Exception(f"Failed to create payment log: {response.status_code} {response.text}")

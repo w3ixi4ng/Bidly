@@ -164,6 +164,7 @@ async def stripe_webhook(request: Request):
                     "category": metadata.get("category", "Other"),
                     "client_id": metadata["client_id"],
                     "payment_id": payment_id,
+                    "payment_intent_id": payment_intent["id"],
                     "starting_bid": float(metadata.get("starting_bid", 0)),
                     "auction_start_time": metadata.get("auction_start_time"),
                     "auction_end_time": metadata.get("auction_end_time"),
