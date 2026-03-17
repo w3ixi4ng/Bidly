@@ -86,6 +86,13 @@ export function connectSocket(userId: string): void {
     }
   );
 
+  socket.on('task_started', (data: { task_id: string }) => {
+    useTaskStore.getState().upsertTask({
+      ...useTaskStore.getState().tasks.find(t => t.task_id === data.task_id)!,
+      auction_status: 'in-progress',
+    });
+  });
+
   socket.on('auction_ended', (data: { task_id: string }) => {
     useTaskStore.getState().markAuctionEnded(data.task_id);
   });

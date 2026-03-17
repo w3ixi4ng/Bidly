@@ -201,6 +201,29 @@ const TaskDetail: React.FC = () => {
       .finally(() => setBidHistoryLoading(false));
   }, [task?.task_id]);
 
+  // Prepend new bids to history live when a bid_update arrives via websocket
+  useEffect(() => {
+    if (!task || !currentBid?.bidder_id || !currentBid?.bid_amount) return;
+    const newEntry: BidResponse = {
+      task_id: task.task_id,
+      bidder_id: currentBid.bidder_id,
+      bid_amount: currentBid.bid_amount,
+      timestamp: new Date().toISOString(),
+    };
+    setBidHistory(prev => {
+      // Avoid duplicate if same bidder+amount already at top
+      const top = prev[0];
+      if (top && top.bidder_id === newEntry.bidder_id && top.bid_amount === newEntry.bid_amount) return prev;
+      return [newEntry, ...prev];
+    });
+    // Resolve bidder name if not yet known
+    if (!bidderNames[currentBid.bidder_id]) {
+      getUser(currentBid.bidder_id)
+        .then(u => setBidderNames(prev => ({ ...prev, [currentBid.bidder_id]: u.name ?? u.email })))
+        .catch(() => {});
+    }
+  }, [currentBid?.bidder_id, currentBid?.bid_amount]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch winner name for closed auctions
   useEffect(() => {
     if (!task || !auctionClosed) return;

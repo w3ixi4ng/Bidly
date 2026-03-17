@@ -81,6 +81,14 @@ data:
               - /payment
             strip_path: false
 
+      - name: notifications-service
+        url: http://notifications:8008
+        routes:
+          - name: notifications-route
+            paths:
+              - /notifications
+            strip_path: false
+
       - name: websocket-service
         url: http://websocket:8007
         routes:

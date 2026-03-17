@@ -1,11 +1,11 @@
 import json
 import asyncio
-import pika
+import aio_pika
 import httpx
 
 user_service_url = "http://users:8004"
-task_service_url = "http://tasks:8000"
-notification_service_url = "http://notifications:8005"
+task_service_url = "http://tasks:8005"
+notification_service_url = "http://notifications:8008"
 
 
 async def send_template_email(to_email: str, template_name: str, dynamic_template_data: dict):
@@ -45,22 +45,22 @@ async def fetch_task(task_id: str):
             raise Exception(f"Failed to fetch task: {str(e)}")
 
 
-def on_auction_end_message(ch, method, properties, body):
-    try:
-        data = json.loads(body.decode())
-        print(f"Received auction end notification: {data}")
-        
-        async def process():
+async def on_auction_end_message(message: aio_pika.IncomingMessage):
+    async with message.process(requeue=False):
+        try:
+            data = json.loads(message.body.decode())
+            print(f"Received auction end notification: {data}")
+
             client_id = data.get("client_id")
             freelancer_id = data.get("freelancer_id")
             task_title = data.get("task_title")
             amount = data.get("amount")
-            
+
             client, freelancer = await asyncio.gather(
                 fetch_user(client_id),
                 fetch_user(freelancer_id)
             )
-            
+
             await asyncio.gather(
                 send_template_email(
                     to_email=freelancer["email"],
@@ -84,29 +84,26 @@ def on_auction_end_message(ch, method, properties, body):
                 )
             )
             print(f"Auction end notifications sent - Freelancer: {freelancer['email']}, Client: {client['email']}")
-        
-        asyncio.run(process())
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-    except Exception as e:
-        print(f"Failed to process auction end message: {str(e)}")
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        except Exception as e:
+            print(f"Failed to process auction end message: {str(e)}")
+            raise
 
 
-def on_bid_outbid_message(ch, method, properties, body):
-    try:
-        data = json.loads(body.decode())
-        print(f"Received bid outbid notification: {data}")
-        
-        async def process():
+async def on_bid_outbid_message(message: aio_pika.IncomingMessage):
+    async with message.process(requeue=False):
+        try:
+            data = json.loads(message.body.decode())
+            print(f"Received bid outbid notification: {data}")
+
             task_id = data.get("task_id")
             previous_bidder_id = data.get("previous_bidder_id")
             bid_amount = data.get("bid_amount")
-            
+
             task, old_freelancer = await asyncio.gather(
                 fetch_task(task_id),
                 fetch_user(previous_bidder_id)
             )
-            
+
             await send_template_email(
                 to_email=old_freelancer["email"],
                 template_name="bid_outbid_freelancer",
@@ -117,24 +114,31 @@ def on_bid_outbid_message(ch, method, properties, body):
                 }
             )
             print(f"Outbid notification sent - Freelancer: {old_freelancer['email']}")
-        
-        asyncio.run(process())
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-    except Exception as e:
-        print(f"Failed to process bid outbid message: {str(e)}")
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        except Exception as e:
+            print(f"Failed to process bid outbid message: {str(e)}")
+            raise
 
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
-channel = connection.channel()
+async def main():
+    connection = await aio_pika.connect_robust("amqp://guest:guest@rabbitmq/")
+    channel = await connection.channel()
 
-channel.exchange_declare(exchange="bidly", exchange_type="topic", durable=True)
-channel.queue_declare(queue="End_Auction_Notifications", durable=True)
-channel.queue_bind(exchange="bidly", queue="End_Auction_Notifications", routing_key="end.auction.notifications")
-channel.queue_declare(queue="Out_Bidded_Notifications", durable=True)
-channel.queue_bind(exchange="bidly", queue="Out_Bidded_Notifications", routing_key="out.bidded.notifications")
+    await channel.declare_exchange("bidly", aio_pika.ExchangeType.TOPIC, durable=True)
 
-channel.basic_qos(prefetch_count=10)
-channel.basic_consume(queue="End_Auction_Notifications", on_message_callback=on_auction_end_message, auto_ack=False)
-channel.basic_consume(queue="Out_Bidded_Notifications", on_message_callback=on_bid_outbid_message, auto_ack=False)
-channel.start_consuming()
+    auction_end_queue = await channel.declare_queue("End_Auction_Notifications", durable=True)
+    await auction_end_queue.bind("bidly", routing_key="end.auction.notifications")
+
+    outbid_queue = await channel.declare_queue("Out_Bidded_Notifications", durable=True)
+    await outbid_queue.bind("bidly", routing_key="out.bidded.notifications")
+
+    await channel.set_qos(prefetch_count=10)
+
+    await auction_end_queue.consume(on_auction_end_message)
+    await outbid_queue.consume(on_bid_outbid_message)
+
+    print("send-notification consuming...")
+    await asyncio.Future()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

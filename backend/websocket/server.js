@@ -155,6 +155,29 @@ async function consumeNewMessages(channel) {
   });
 }
 
+async function consumeTaskStarted(channel) {
+  await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
+  const q = await channel.assertQueue('Task_Started_WebSocket', { durable: true });
+  await channel.bindQueue(q.queue, EXCHANGE_NAME, 'task.started.websocket');
+  channel.prefetch(10);
+
+  channel.consume(q.queue, (msg) => {
+    if (!msg) return;
+    try {
+      const data = JSON.parse(msg.content.toString());
+      const { task_id } = data;
+      if (task_id) {
+        io.emit('task_started', { task_id });
+        console.log(`[task_started] broadcasted globally for task_id ${task_id}`);
+      }
+      channel.ack(msg);
+    } catch (e) {
+      console.error('[task_started] error processing message:', e);
+      channel.nack(msg, false, false);
+    }
+  });
+}
+
 async function consumeAuctionEnded(channel) {
   await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: true });
   const q = await channel.assertQueue('End_Auction_WebSocket', { durable: true });
@@ -188,11 +211,13 @@ async function start() {
 
   const bidChannel = await connection.createChannel();
   const taskChannel = await connection.createChannel();
+  const taskStartedChannel = await connection.createChannel();
   const chatChannel = await connection.createChannel();
   const auctionChannel = await connection.createChannel();
 
   await consumeBidUpdates(bidChannel);
   await consumeTaskCreated(taskChannel);
+  await consumeTaskStarted(taskStartedChannel);
   await consumeNewMessages(chatChannel);
   await consumeAuctionEnded(auctionChannel);
 

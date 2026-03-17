@@ -48,7 +48,7 @@ const Tasks: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'newest' | 'ending-soon' | 'lowest-bid' | 'highest-bid'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'ending-soon' | 'lowest-bid' | 'highest-bid'>('ending-soon');
 
   const gridRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -128,7 +128,10 @@ const Tasks: React.FC = () => {
     return () => ctx.revert();
   }, [loading, activeCategory, sortBy, searchQuery]);
 
-  const activeTasks = tasks.filter(t => t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now());
+  const activeTasks = tasks.filter(t =>
+    (t.auction_status === 'in-progress' || t.auction_status === 'pending') &&
+    new Date(t.auction_end_time).getTime() > Date.now()
+  );
 
   const filteredTasks = activeTasks.filter(task => {
     const q = searchQuery.toLowerCase();
@@ -138,6 +141,11 @@ const Tasks: React.FC = () => {
   });
 
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Pending tasks always appear after in-progress tasks
+    const aIsPending = a.auction_status === 'pending';
+    const bIsPending = b.auction_status === 'pending';
+    if (aIsPending !== bIsPending) return aIsPending ? 1 : -1;
+
     if (sortBy === 'ending-soon') {
       return new Date(a.auction_end_time).getTime() - new Date(b.auction_end_time).getTime();
     }
@@ -151,7 +159,6 @@ const Tasks: React.FC = () => {
       const bidB = currentBids[b.task_id]?.bid_amount ?? b.starting_bid;
       return bidB - bidA;
     }
-    // newest: reverse insertion order (tasks come sorted by start time desc from API ideally)
     return new Date(b.auction_start_time).getTime() - new Date(a.auction_start_time).getTime();
   });
 
@@ -386,7 +393,7 @@ const Tasks: React.FC = () => {
             }}>
               {sortedTasks.map(task => (
                 <div key={task.task_id} className="task-card-item">
-                  <TaskCard task={task} currentBid={currentBids[task.task_id]} />
+                  <TaskCard task={task} currentBid={currentBids[task.task_id]} isPending={task.auction_status === 'pending'} />
                 </div>
               ))}
             </div>
