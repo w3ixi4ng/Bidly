@@ -1,4 +1,4 @@
-pika
+aio-pika
 httpx
 python-dotenv
 pydantic
