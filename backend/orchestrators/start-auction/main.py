@@ -30,6 +30,14 @@ def start_auction(ch, method, properties, body):
         if response.status_code != 200:
             response.raise_for_status()
 
+        # Notify websocket so frontend cards transition live from pending -> in-progress
+        channel.basic_publish(
+            exchange="bidly",
+            routing_key="task.started.websocket",
+            body=json.dumps({"task_id": str(request.task_id)}),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+
         # publish to waiting queue with TTL — when expired, dead-lettered to bidly/process.winner
         channel.basic_publish(
             exchange="",
