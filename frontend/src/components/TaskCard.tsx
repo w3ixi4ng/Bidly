@@ -6,6 +6,7 @@ import Skeleton from './Skeleton';
 interface TaskCardProps {
   task?: Task;
   currentBid?: CurrentBid;
+  isPending?: boolean;
 }
 
 function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'medium' | 'high' } {
@@ -29,7 +30,7 @@ const TaskCardSkeleton: React.FC = () => (
   <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 196 }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
       <Skeleton variant="text" width="65%" height="20px" />
-      <Skeleton variant="rect" width="72px" height="22px" style={{ borderRadius: 999, flexShrink: 0 }} />
+      <Skeleton variant="rect" width="72px" height="22px" />
     </div>
     <Skeleton variant="text" width="100%" height="14px" />
     <Skeleton variant="text" width="80%" height="14px" />
@@ -46,7 +47,20 @@ const TaskCardSkeleton: React.FC = () => (
   </div>
 );
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
+function formatStartCountdown(startTime: string): string {
+  const diff = new Date(startTime).getTime() - Date.now();
+  if (diff <= 0) return 'Starting...';
+  const totalHours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    return `Starts in ${days}d ${totalHours % 24}h`;
+  }
+  if (totalHours > 0) return `Starts in ${totalHours}h ${mins}m`;
+  return `Starts in ${mins}m`;
+}
+
+const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false }) => {
   const navigate = useNavigate();
   const [, setTick] = useState(0);
   const [hovered, setHovered] = useState(false);
@@ -74,30 +88,33 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
     high: '#ef4444',
   }[countdown.urgency];
 
-  const handleClick = () => navigate(`/task/${task.task_id}`);
+  const handleClick = () => {
+    if (!isPending) navigate(`/task/${task.task_id}`);
+  };
 
   return (
     <div
       onClick={handleClick}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => !isPending && setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         background: 'var(--surface)',
         border: `1px solid ${hovered ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
         borderRadius: 20,
         padding: '22px 22px 18px',
-        cursor: 'pointer',
+        cursor: isPending ? 'default' : 'pointer',
         display: 'flex',
         flexDirection: 'column',
         gap: 0,
         minHeight: 196,
         position: 'relative',
         overflow: 'hidden',
+        opacity: isPending ? 0.5 : 1,
         boxShadow: hovered
           ? '0 12px 40px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)'
           : '0 2px 8px rgba(0,0,0,0.05)',
         transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
-        transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease',
+        transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, opacity 0.3s ease',
       }}
     >
       {/* Accent glow on hover */}
@@ -109,6 +126,25 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
           background: 'linear-gradient(90deg, #6366f1, #a855f7)',
           borderRadius: '20px 20px 0 0',
         }} />
+      )}
+
+      {/* Pending badge */}
+      {isPending && (
+        <div style={{
+          position: 'absolute',
+          top: 18, right: 18,
+          padding: '3px 9px',
+          background: 'rgba(161,161,170,0.15)',
+          border: '1px solid rgba(161,161,170,0.3)',
+          borderRadius: 999,
+          fontSize: 10,
+          fontWeight: 700,
+          color: 'var(--text-secondary)',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase' as const,
+        }}>
+          Pending
+        </div>
       )}
 
       {/* Live pulse if has active bid */}
@@ -196,21 +232,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid }) => {
         {/* Timer */}
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3, fontWeight: 500, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-            Ends in
+            {isPending ? 'Starts' : 'Ends in'}
           </div>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 5,
             justifyContent: 'flex-end',
           }}>
-            <svg width="12" height="12" fill="none" stroke={urgencyColor} strokeWidth="2" viewBox="0 0 24 24">
+            <svg width="12" height="12" fill="none" stroke={isPending ? 'var(--text-secondary)' : urgencyColor} strokeWidth="2" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 6v6l4 2" />
             </svg>
-            <span style={{ fontSize: 13, fontWeight: 700, color: urgencyColor }}>
-              {countdown.text}
+            <span style={{ fontSize: 13, fontWeight: 700, color: isPending ? 'var(--text-secondary)' : urgencyColor }}>
+              {isPending ? formatStartCountdown(task.auction_start_time) : countdown.text}
             </span>
           </div>
-          {countdown.urgency === 'high' && countdown.text !== 'Ended' && (
+          {!isPending && countdown.urgency === 'high' && countdown.text !== 'Ended' && (
             <div style={{ fontSize: 10, color: urgencyColor, marginTop: 2, fontWeight: 600 }}>
               Ending soon!
             </div>
