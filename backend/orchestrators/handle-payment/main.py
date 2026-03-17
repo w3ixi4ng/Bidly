@@ -5,7 +5,7 @@ from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
 import stripe
 from dotenv import load_dotenv, find_dotenv
 import os
-from service import post_payment_log
+from service import post_payment_log, get_payment_logs_by_payment_id
 
 load_dotenv(find_dotenv())
 stripe.api_key = os.getenv("STRIPE_API_KEY")
@@ -84,14 +84,22 @@ async def release_payment(payment_data: ReleasePaymentData):
 async def refund_payment(payment_data: RefundPaymentData):
     """Full refund of the captured payment back to the client."""
     try:
+        # Look up payment_intent_id from OutSystems payment log using the payment UUID
+        payment_log = get_payment_logs_by_payment_id(payment_data.payment_id)
+        payment_intent_id = payment_log.get("payment_intent_id")
+        if not payment_intent_id:
+            raise HTTPException(status_code=404, detail="Payment log not found or missing payment_intent_id")
+
         async with httpx.AsyncClient() as client:
             refund_res = await client.post(f"{PAYMENT_URL}/payment/refund-payment", json={
-                "payment_intent_id": payment_data.payment_id,
+                "payment_intent_id": payment_intent_id,
             })
             refund_res.raise_for_status()
 
         return {"status": "refunded"}
 
+    except HTTPException:
+        raise
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except Exception as e:
