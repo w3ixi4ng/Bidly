@@ -5,7 +5,7 @@ from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
 import stripe
 from dotenv import load_dotenv, find_dotenv
 import os
-from service import post_payment_log, get_payment_logs_by_payment_id
+from service import post_payment_log, get_payment_logs_by_payment_id, update_payment_log_status
 
 load_dotenv(find_dotenv())
 stripe.api_key = os.getenv("STRIPE_API_KEY")
@@ -50,25 +50,32 @@ async def release_payment(payment_data: ReleasePaymentData):
     # update payment log with payment status
     
     try:
+        # Look up payment_intent_id from OutSystems payment log using the payment UUID
+        payment_log = get_payment_logs_by_payment_id(payment_data.payment_id)
+        payment_intent_id = payment_log.get("payment_intent_id")
+        if not payment_intent_id:
+            raise HTTPException(status_code=404, detail="Payment log not found or missing payment_intent_id")
+
         async with httpx.AsyncClient() as client:
             # get freelancer's stripe connected account id from users service
             user_res = await client.get(f"http://users:8004/users/{payment_data.freelancer_id}")
-            
             user_res.raise_for_status()
             stripe_connected_account_id = user_res.json().get("stripe_connected_account_id")
 
             if not stripe_connected_account_id:
                 raise HTTPException(status_code=400, detail="Freelancer does not have a Stripe connected account")
 
-            # payment_id on the task is the Stripe payment_intent_id
-            # call payment service to release payment to winner and refund remaining amount to client
             release_res = await client.post(f"{PAYMENT_URL}/payment/release-payment", json={
-                "payment_intent_id": payment_data.payment_id,
+                "payment_intent_id": payment_intent_id,
                 "stripe_connected_account_id": stripe_connected_account_id,
                 "amount": payment_data.amount,
             })
-            
             release_res.raise_for_status()
+
+        try:
+            update_payment_log_status(payment_data.payment_id, "released")
+        except Exception as e:
+            logger.error(f"Release succeeded but failed to update payment log: {e}")
 
         return {"status": "released"}
 
@@ -95,6 +102,11 @@ async def refund_payment(payment_data: RefundPaymentData):
                 "payment_intent_id": payment_intent_id,
             })
             refund_res.raise_for_status()
+
+        try:
+            update_payment_log_status(payment_data.payment_id, "refunded")
+        except Exception as e:
+            logger.error(f"Refund succeeded but failed to update payment log: {e}")
 
         return {"status": "refunded"}
 
