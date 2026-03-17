@@ -128,17 +128,23 @@ async def stripe_webhook(request: Request):
         if not metadata.get("client_id") or not metadata.get("title"):
             return {"status": "ignored", "reason": "not a task payment"}
 
-        # Log payment to OutSystems
+        # Log payment to OutSystems and get the payment_id UUID
+        payment_id = None
         try:
-            post_payment_log({
+            payment_log = post_payment_log({
                 "payment_intent_id": payment_intent["id"],
-                "amount": payment_intent["amount"] / 100,  # convert cents to dollars
+                "amount": payment_intent["amount"] / 100,
                 "client_id": metadata["client_id"],
                 "freelancer_id": None,
                 "payment_status": "captured",
             })
+            payment_id = payment_log.get("payment_id")
         except Exception as e:
             logger.error(f"Webhook: failed to log payment: {e}")
+
+        if not payment_id:
+            logger.error(f"Webhook: no payment_id returned from payment log, aborting task creation")
+            return {"status": "error", "reason": "payment log failed"}
 
         # Call create-task orchestrator (its idempotency check prevents duplicates)
         try:
@@ -149,7 +155,7 @@ async def stripe_webhook(request: Request):
                     "requirements": [],
                     "category": metadata.get("category", "Other"),
                     "client_id": metadata["client_id"],
-                    "payment_id": payment_intent["id"],
+                    "payment_id": payment_id,
                     "starting_bid": float(metadata.get("starting_bid", 0)),
                     "auction_start_time": metadata.get("auction_start_time"),
                     "auction_end_time": metadata.get("auction_end_time"),
