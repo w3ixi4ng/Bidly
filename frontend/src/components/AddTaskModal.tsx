@@ -7,12 +7,10 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { capturePayment } from '../api/payment';
-import { createTask } from '../api/tasks';
-import { useTaskStore } from '../store/taskStore';
 import Skeleton from './Skeleton';
 import type { TaskCategory } from '../types';
 
-type Step = 'form' | 'payment' | 'confirming' | 'creating' | 'done';
+type Step = 'form' | 'payment' | 'confirming' | 'done';
 
 const TASK_CATEGORIES: TaskCategory[] = ['Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
@@ -37,7 +35,6 @@ const AddTaskModal: React.FC = () => {
   const { user } = useAuthStore();
   const { isDark } = useUIStore();
   const { setAddTaskModalOpen } = useUIStore();
-  const { upsertTask } = useTaskStore();
 
   const [step, setStep] = useState<Step>('form');
   const [clientSecret, setClientSecret] = useState('');
@@ -153,31 +150,6 @@ const AddTaskModal: React.FC = () => {
         return;
       }
 
-      setStep('creating');
-
-      const startTime = form.startNow
-        ? new Date().toISOString()
-        : new Date(form.auction_start_time).toISOString();
-      const endTime = new Date(form.auction_end_time).toISOString();
-
-      const task = await createTask({
-        title: form.title.trim(),
-        description: form.description.trim(),
-        requirements,
-        category: form.category,
-        client_id: user!.user_id,
-        payment_id: paymentIntent.id,
-        starting_bid: Number(form.starting_bid),
-        auction_start_time: startTime,
-        auction_end_time: endTime,
-      });
-
-      // Optimistically mark as in-progress if auction start is now or in the past
-      const startDate = new Date(task.auction_start_time);
-      if (startDate <= new Date()) {
-        task.auction_status = 'in-progress';
-      }
-      upsertTask(task);
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task.');
@@ -200,7 +172,7 @@ const AddTaskModal: React.FC = () => {
     },
   };
 
-  const isProcessing = step === 'confirming' || step === 'creating';
+  const isProcessing = step === 'confirming';
 
   return (
     <div className="modal-overlay" onClick={() => !isProcessing && setAddTaskModalOpen(false)}>
@@ -213,7 +185,7 @@ const AddTaskModal: React.FC = () => {
           <h2 className="modal-title">
             {step === 'form' && 'Create New Task'}
             {step === 'payment' && 'Payment'}
-            {isProcessing && 'Processing...'}
+            {step === 'confirming' && 'Processing...'}
             {step === 'done' && 'Task Created!'}
           </h2>
           {!isProcessing && step !== 'done' && (
@@ -486,7 +458,7 @@ const AddTaskModal: React.FC = () => {
             <Skeleton height="20px" width="80%" />
             <Skeleton height="48px" />
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-              {step === 'confirming' ? 'Confirming payment...' : 'Creating your task...'}
+              Confirming payment...
             </div>
           </div>
         )}
