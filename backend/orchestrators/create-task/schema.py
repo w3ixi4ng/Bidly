@@ -11,6 +11,7 @@ class CreateTaskRequest(BaseModel):
     category: CATEGORY_LITERAL = "Other"
     client_id: str
     payment_id: str
+    payment_intent_id: str
     starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime

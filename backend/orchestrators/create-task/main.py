@@ -51,7 +51,7 @@ async def create_task(body: CreateTaskRequest):
             return {**existing[0], "already_exists": True}
 
         # Server-side payment verification: confirm with Stripe that payment succeeded
-        verify_res = await client.get(f"{PAYMENT_URL}/payment/verify/{body.payment_id}")
+        verify_res = await client.get(f"{PAYMENT_URL}/payment/verify/{body.payment_intent_id}")
         if verify_res.status_code != 200:
             raise HTTPException(status_code=402, detail="Unable to verify payment")
         payment_status = verify_res.json().get("status")
@@ -94,7 +94,7 @@ async def create_task(body: CreateTaskRequest):
             aio_pika.Message(
                 body=auction_payload,
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                expiration=str(delay_ms),
+                expiration=delay_ms,
             ),
             routing_key="auction_pending",
         )
