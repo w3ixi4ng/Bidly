@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: users
-          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/users:latest
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/users:8c6563e7c066611e679232e40e1f6b775585f823
           imagePullPolicy: Always
           ports:
             - containerPort: 8004
