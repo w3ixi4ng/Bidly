@@ -43,19 +43,8 @@ jobs:
           workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
-      - name: Install gke-gcloud-auth-plugin
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          install_components: gke-gcloud-auth-plugin
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
-
-      - name: Configure kubectl
-        run: |
-          gcloud container clusters get-credentials bidly \
-            --region asia-southeast1 \
-            --project ${{ vars.GCP_PROJECT_ID }}
 
       - name: Build and push images to Artifact Registry, update k8s manifests
         env:
