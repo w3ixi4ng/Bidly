@@ -1,4 +1,4 @@
-name: CD
+name: Deploy
 
 on:
   push:
@@ -14,9 +14,11 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: dorny/paths-filter@v3
+      - name: Detect changed services
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
@@ -71,7 +73,7 @@ jobs:
             --from-literal=SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }} \
             --namespace=bidly --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Build, push, and update manifests
+      - name: Build and push images to Artifact Registry, update k8s manifests
         env:
           REGISTRY: asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/bidly
           SHA: ${{ github.sha }}

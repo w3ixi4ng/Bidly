@@ -1,4 +1,4 @@
-name: CI
+name: Validate PR
 
 on:
   pull_request:
@@ -23,8 +23,10 @@ jobs:
       send-notifications: ${{ steps.changes.outputs.send-notifications }}
       start-auction: ${{ steps.changes.outputs.start-auction }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Detect changed services
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
@@ -46,7 +48,8 @@ jobs:
   sast:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Semgrep scan
         uses: returntocorp/semgrep-action@v1
         with:
@@ -103,7 +106,8 @@ jobs:
             context: backend/orchestrators/start-auction
             changed: ${{ needs.detect-changes.outputs.start-auction }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Skip if unchanged
         if: matrix.changed != 'true'
