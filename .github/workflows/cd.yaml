@@ -1,0 +1,148 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            users: backend/services/users/**
+            tasks: backend/services/tasks/**
+            bids: backend/services/bids/**
+            chats: backend/services/chats/**
+            chat-logs: backend/services/chat-logs/**
+            notifications: backend/services/notifications/**
+            payment: backend/services/payment/**
+            websocket: backend/websocket/**
+            create-task: backend/orchestrators/create-task/**
+            connect-chat: backend/orchestrators/connect-chat/**
+            handle-payment: backend/orchestrators/handle-payment/**
+            process-winner: backend/orchestrators/process-winner/**
+            send-notifications: backend/orchestrators/send-notifications/**
+            start-auction: backend/orchestrators/start-auction/**
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Configure kubectl
+        run: |
+          gcloud container clusters get-credentials bidly \
+            --region asia-southeast1 \
+            --project ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Apply k8s secrets
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          kubectl create secret generic supabase-secret \
+            --from-literal=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --from-literal=SUPABASE_KEY=${{ secrets.SUPABASE_KEY }} \
+            --namespace=bidly --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic stripe-secret \
+            --from-literal=STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }} \
+            --from-literal=STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }} \
+            --namespace=bidly --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic firebase-secret \
+            --from-literal=FIREBASE_SERVICE_ACCOUNT=${{ secrets.FIREBASE_SERVICE_ACCOUNT }} \
+            --namespace=bidly --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic twilio-secret \
+            --from-literal=SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }} \
+            --namespace=bidly --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Build, push, and update manifests
+        env:
+          REGISTRY: asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/bidly
+          SHA: ${{ github.sha }}
+        run: |
+          CHANGED=false
+
+          build_and_update() {
+            local SERVICE=$1
+            local CONTEXT=$2
+            local MANIFEST=$3
+
+            echo "Building $SERVICE..."
+            docker build -t $REGISTRY/$SERVICE:$SHA $CONTEXT
+            docker push $REGISTRY/$SERVICE:$SHA
+            sed -i "s|$REGISTRY/$SERVICE:.*|$REGISTRY/$SERVICE:$SHA|" $MANIFEST
+            CHANGED=true
+          }
+
+          # Services
+          if [ "${{ steps.changes.outputs.users }}" == "true" ]; then
+            build_and_update "users" "backend/services/users" "k8s/services/users/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.tasks }}" == "true" ]; then
+            build_and_update "tasks" "backend/services/tasks" "k8s/services/tasks/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.bids }}" == "true" ]; then
+            build_and_update "bids" "backend/services/bids" "k8s/services/bids/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.chats }}" == "true" ]; then
+            build_and_update "chats" "backend/services/chats" "k8s/services/chats/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.chat-logs }}" == "true" ]; then
+            build_and_update "chat-logs" "backend/services/chat-logs" "k8s/services/chat-logs/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.notifications }}" == "true" ]; then
+            build_and_update "notifications" "backend/services/notifications" "k8s/services/notifications/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.payment }}" == "true" ]; then
+            build_and_update "payment" "backend/services/payment" "k8s/services/payment/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.websocket }}" == "true" ]; then
+            build_and_update "websocket" "backend/websocket" "k8s/services/websocket/deployment.yaml"
+          fi
+
+          # Orchestrators
+          if [ "${{ steps.changes.outputs.create-task }}" == "true" ]; then
+            build_and_update "create-task" "backend/orchestrators/create-task" "k8s/orchestrators/create-task/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.connect-chat }}" == "true" ]; then
+            build_and_update "connect-chat" "backend/orchestrators/connect-chat" "k8s/orchestrators/connect-chat/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.handle-payment }}" == "true" ]; then
+            build_and_update "handle-payment" "backend/orchestrators/handle-payment" "k8s/orchestrators/handle-payment/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.process-winner }}" == "true" ]; then
+            build_and_update "process-winner" "backend/orchestrators/process-winner" "k8s/orchestrators/process-winner/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.send-notifications }}" == "true" ]; then
+            build_and_update "send-notifications" "backend/orchestrators/send-notifications" "k8s/orchestrators/send-notifications/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.start-auction }}" == "true" ]; then
+            build_and_update "start-auction" "backend/orchestrators/start-auction" "k8s/orchestrators/start-auction/deployment.yaml"
+          fi
+
+          echo "CHANGED=$CHANGED" >> $GITHUB_ENV
+
+      - name: Commit updated manifests
+        if: env.CHANGED == 'true'
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git add k8s/
+          git diff --staged --quiet || git commit -m "chore: update images to ${{ github.sha }}"
+          git push
