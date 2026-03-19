@@ -140,6 +140,3 @@ async def update_user_profile(user_id: str, user_update: UserUpdate, current_use
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8004)
-
-
-# test ci and cd
