@@ -43,6 +43,9 @@ jobs:
           workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
+      - name: Install gke-gcloud-auth-plugin
+        run: gcloud components install gke-gcloud-auth-plugin --quiet
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
