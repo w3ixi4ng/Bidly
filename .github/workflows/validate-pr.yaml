@@ -7,6 +7,9 @@ on:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
     outputs:
       users: ${{ steps.changes.outputs.users }}
       tasks: ${{ steps.changes.outputs.tasks }}
