@@ -23,7 +23,7 @@ spec:
             - containerPort: 15672  # management UI
           resources:
             requests:
-              cpu: 800m
+              cpu: 300m
               memory: 256Mi
           volumeMounts:
             - name: rabbitmq-data
