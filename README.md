@@ -189,8 +189,8 @@ npm run dev
 <p align="center">
 <a href="https://github.com/features/actions"><img src="https://github.com/user-attachments/assets/84046b86-7745-4ddd-8c36-b39b6a9ead91" alt="GitHub Actions" width="40"/></a>&nbsp;&nbsp;
 <a href="https://argoproj.github.io/cd/"><img src="https://user-images.githubusercontent.com/25306803/43103633-a5d61dc4-8e83-11e8-9f0e-7ccdbee01eb6.png" alt="ArgoCD" width="40"/></a>&nbsp;&nbsp;
-<a href="https://semgrep.dev/"><img src="https://raw.githubusercontent.com/semgrep/semgrep/develop/images/semgrep-logo-light.svg" alt="Semgrep" width="40"/></a>&nbsp;&nbsp;
-<a href="https://aquasecurity.github.io/trivy/"><img src="https://raw.githubusercontent.com/aquasecurity/trivy/main/docs/imgs/logo.png" alt="Trivy" width="40"/></a>&nbsp;&nbsp;
+<a href="https://semgrep.dev/"><img src="https://raw.githubusercontent.com/semgrep/semgrep/develop/images/semgrep-logo-light.svg" alt="Semgrep" width="120"/></a>&nbsp;&nbsp;
+<a href="https://aquasecurity.github.io/trivy/"><img src="https://raw.githubusercontent.com/aquasecurity/trivy/main/docs/imgs/logo.png" alt="Trivy" width="80"/></a>&nbsp;&nbsp;
 <br>
 <i>GitHub Actions · Argo CD · Semgrep · Trivy</i>
 </p>
