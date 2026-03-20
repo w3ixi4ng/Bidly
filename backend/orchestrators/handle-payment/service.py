@@ -27,9 +27,9 @@ def get_payment_logs_by_payment_id(payment_id):
         raise Exception("Failed to retrieve payment log")
 
 def update_payment_log_status(payment_id: str, payment_status: str):
-    response = requests.put(
-        f"https://personal-yzh5fzm9.outsystemscloud.com/Payments/rest/OutPaymentsAPI/UpdatePayments",
-        json={"payment_id": payment_id, "payment_status": payment_status}
+    response = requests.patch(
+        f"https://personal-yzh5fzm9.outsystemscloud.com/Payments/rest/OutPaymentsAPI/PatchPaymentByPaymentId?payment_id=eq.{payment_id}",
+        json={"payment_status": payment_status}
     )
     if response.status_code not in (200, 201, 204):
         raise Exception(f"Failed to update payment log: {response.status_code} {response.text}")
