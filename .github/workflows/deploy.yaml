@@ -3,7 +3,8 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+    paths-ignore:
+      - "**/*.md"
 
 jobs:
   deploy:
