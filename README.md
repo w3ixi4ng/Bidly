@@ -52,7 +52,7 @@ npm run dev
 - **Kong API Gateway** for routing, CORS, and rate limiting
 - **Redis** for real-time auction state with atomic bid placement via Lua scripting
 - **Supabase (PostgreSQL)** as primary database
-- **Firebase** for chat log storage
+- **Firestore** for chat log storage
 - **OutSystems** as low code provider and external microservice
 - **Prometheus & Grafana** for metrics collection and observability dashboards
 - **CI/CD pipeline** with automated Docker builds and GCP Artifact Registry pushes
@@ -118,10 +118,10 @@ npm run dev
 <p align="center"><strong>Storage Solutions</strong></p>
 <p align="center">
 <a href="https://supabase.com/"><img src="https://www.vectorlogo.zone/logos/supabase/supabase-icon.svg" alt="Supabase" width="40"/></a>&nbsp;&nbsp;
-<a href="https://firebase.google.com/"><img src="https://upload.wikimedia.org/wikipedia/commons/3/37/Firebase_Logo.svg" alt="Firebase" width="120"/></a>&nbsp;&nbsp;
-<a href="https://redis.io/"><img src="https://upload.wikimedia.org/wikipedia/commons/e/ee/Redis_logo.svg" alt="Redis" width="100"/></a>&nbsp;&nbsp;
+<a href="https://firebase.google.com/products/firestore/"><img src="https://www.vectorlogo.zone/logos/firebase/firebase-icon.svg" alt="Firestore" width="40"/></a>&nbsp;&nbsp;
+<a href="https://redis.io/"><img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/redis/redis-original.svg" alt="Redis" width="40"/></a>&nbsp;&nbsp;
 <br>
-<i>Supabase (PostgreSQL) · Firebase · Redis</i>
+<i>Supabase (PostgreSQL) · Firestore · Redis</i>
 </p>
 <br>
 
