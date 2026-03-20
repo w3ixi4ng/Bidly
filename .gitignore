@@ -8,6 +8,7 @@ node_modules/
 dist/
 serviceAccountKey.json
 k8s/secrets/
+docs/
 
 # Logs
 logs

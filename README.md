@@ -32,7 +32,9 @@ npm run dev
 
 ---
 
-## Technical Architecture Diagram
+## System Architecture Diagram
+
+![System Architecture](assets/system_architecture.png)
 
 ## Cloud Architecture Diagram
 
