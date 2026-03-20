@@ -4,11 +4,11 @@ set K8S_DIR=%~dp0
 set ROOT_DIR=%K8S_DIR%..
 
 echo ==> Applying namespace...
-kubectl apply -f "%K8S_DIR%namespace.yaml"
+kubectl apply -f "%K8S_DIR%cluster\namespace.yaml"
 if errorlevel 1 exit /b 1
 
 echo ==> Applying managed certificate...
-kubectl apply -f "%K8S_DIR%managed-certificate.yaml"
+kubectl apply -f "%K8S_DIR%infrastructure\ingress\managed-certificate.yaml"
 if errorlevel 1 exit /b 1
 
 echo ==> Applying secrets from .env files...
@@ -22,7 +22,7 @@ kubectl create secret generic twilio-secret --from-env-file="%ROOT_DIR%\.env.twi
 if errorlevel 1 exit /b 1
 
 echo ==> Applying shared configmap...
-kubectl apply -f "%K8S_DIR%configmap.yaml"
+kubectl apply -f "%K8S_DIR%cluster\configmap.yaml"
 if errorlevel 1 exit /b 1
 
 echo ==> Applying infrastructure...
@@ -38,7 +38,7 @@ kubectl apply -R -f "%K8S_DIR%orchestrators"
 if errorlevel 1 exit /b 1
 
 echo ==> Applying ingress...
-kubectl apply -f "%K8S_DIR%ingress.yaml"
+kubectl apply -f "%K8S_DIR%infrastructure\ingress\ingress.yaml"
 if errorlevel 1 exit /b 1
 
 echo Done.

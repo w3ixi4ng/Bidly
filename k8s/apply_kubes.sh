@@ -4,10 +4,10 @@ set -e
 K8S_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> Applying namespace..."
-kubectl apply -f "$K8S_DIR/namespace.yaml"
+kubectl apply -f "$K8S_DIR/cluster/namespace.yaml"
 
 echo "==> Applying managed certificate..."
-kubectl apply -f "$K8S_DIR/managed-certificate.yaml"
+kubectl apply -f "$K8S_DIR/infrastructure/ingress/managed-certificate.yaml"
 
 echo "==> Applying secrets from .env files..."
 
@@ -19,7 +19,7 @@ kubectl create secret generic firebase-secret --from-env-file="$ROOT_DIR/.env.fi
 kubectl create secret generic twilio-secret --from-env-file="$ROOT_DIR/.env.twilio" -n bidly --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> Applying shared configmap..."
-kubectl apply -f "$K8S_DIR/configmap.yaml"
+kubectl apply -f "$K8S_DIR/cluster/configmap.yaml"
 
 echo "==> Applying infrastructure..."
 kubectl apply -R -f "$K8S_DIR/infrastructure/"
@@ -31,6 +31,6 @@ echo "==> Applying orchestrators..."
 kubectl apply -R -f "$K8S_DIR/orchestrators/"
 
 echo "==> Applying ingress..."
-kubectl apply -f "$K8S_DIR/ingress.yaml"
+kubectl apply -f "$K8S_DIR/infrastructure/ingress/ingress.yaml"
 
 echo "Done."
