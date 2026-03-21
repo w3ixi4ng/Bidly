@@ -121,10 +121,8 @@ async def refund_payment(payment_data: RefundPaymentData):
 @app.post("/handle-payment/stripe/webhook")
 async def stripe_webhook(request: Request):
     """
-    Stripe webhook handler — acts as a safety net.
-    If the frontend successfully created the task, the create-task endpoint's
-    idempotency check (payment_id lookup) will prevent duplicates.
-    If the frontend failed (e.g. browser closed), this creates the task.
+    Stripe webhook handler for payment_intent.succeeded events.
+    Logs the payment to OutSystems and creates the task via the create-task orchestrator.
     """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
