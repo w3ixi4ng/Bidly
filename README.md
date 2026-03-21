@@ -38,6 +38,8 @@ npm run dev
 
 ## Cloud Architecture Diagram
 
+![Cloud Architecture](assets/cloud_overview.png)
+
 ## Kubernetes Architecture Diagram
 
 ![Kubernetes Architecture](assets/kubernetes.png)
