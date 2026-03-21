@@ -117,13 +117,16 @@ def release_payment(data: ReleasePayment):
         transfer_group=data.payment_intent_id,
     )
 
-    # Refund remaining amount back to client
-    refund = stripe.Refund.create(
-        payment_intent=data.payment_intent_id,
-        amount=refund_amount,
-    )
+    # Refund remaining amount back to client (skip if nothing to refund)
+    refund_id = None
+    if refund_amount >= 1:
+        refund = stripe.Refund.create(
+            payment_intent=data.payment_intent_id,
+            amount=refund_amount,
+        )
+        refund_id = refund["id"]
 
-    return {"transfer_id": transfer["id"], "refund_id": refund["id"]}
+    return {"transfer_id": transfer["id"], "refund_id": refund_id}
 
 
 @app.get("/payment/verify/{payment_intent_id}")

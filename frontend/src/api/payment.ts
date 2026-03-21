@@ -71,3 +71,23 @@ export async function refundPayment(
   );
   return data;
 }
+
+export interface CreateTaskPayload {
+  title: string;
+  description: string;
+  requirements: string[];
+  category: string;
+  client_id: string;
+  payment_id: string;
+  payment_intent_id: string;
+  starting_bid: number;
+  auction_start_time: string;
+  auction_end_time: string;
+}
+
+export async function createTask(
+  payload: CreateTaskPayload
+): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.post('/create-task', payload);
+  return data;
+}
