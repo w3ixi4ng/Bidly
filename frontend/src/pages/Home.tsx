@@ -6,8 +6,9 @@ import { useAuthStore } from '../store/authStore';
 import { useTaskStore } from '../store/taskStore';
 import { useChatStore } from '../store/chatStore';
 import { useUIStore } from '../store/uiStore';
-import { login, signup } from '../api/users';
+import { login, signup, getUser } from '../api/users';
 import { getTasks } from '../api/tasks';
+import { getCurrentBidWithFallback } from '../api/bids';
 import { getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { connectSocket } from '../socket/socket';
@@ -27,14 +28,12 @@ function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// Animated bid ticker data
-const LIVE_BIDS = [
-  { task: 'Landing Page Design', from: '$340', to: '$280', user: 'alex_dev' },
-  { task: 'React Dashboard', from: '$520', to: '$410', user: 'marina_k' },
-  { task: 'Logo Redesign', from: '$180', to: '$125', user: 'designpro' },
-  { task: 'API Integration', from: '$290', to: '$210', user: 'codewiz' },
-  { task: 'SEO Audit', from: '$150', to: '$95', user: 'growth_hq' },
-];
+interface LiveBid {
+  task: string;
+  from: string | null;
+  to: string;
+  user: string;
+}
 
 const FEATURES = [
   {
@@ -85,10 +84,10 @@ const FEATURES = [
   },
 ];
 
-const STATS = [
-  { value: '2.4k+', label: 'Tasks Posted' },
-  { value: '89%', label: 'Avg. Savings' },
-  { value: '< 2min', label: 'First Bid' },
+const STATS_FALLBACK = [
+  { value: '—', label: 'Tasks Posted' },
+  { value: '—', label: 'Completed' },
+  { value: '—', label: 'Live Now' },
   { value: '$0', label: 'Platform Fee' },
 ];
 
@@ -106,6 +105,8 @@ const Home: React.FC = () => {
   const [errors, setErrors] = useState<Partial<FormState & { general: string }>>({});
   const [loading, setLoading] = useState(false);
   const [activeBidIdx, setActiveBidIdx] = useState(0);
+  const [liveBids, setLiveBids] = useState<LiveBid[]>([]);
+  const [liveStats, setLiveStats] = useState(STATS_FALLBACK);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
@@ -121,13 +122,60 @@ const Home: React.FC = () => {
     if (isAuthenticated) navigate('/tasks', { replace: true });
   }, [isAuthenticated, navigate]);
 
+  // Fetch live stats and live bids from API
+  useEffect(() => {
+    getTasks()
+      .then(async tasks => {
+        const total = tasks.length;
+        const completed = tasks.filter(t =>
+          t.auction_status === 'completed' || t.auction_status === 'accepted' || t.auction_status === 'pending-review'
+        ).length;
+        const liveTasks = tasks.filter(t =>
+          t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now()
+        );
+        setLiveStats([
+          { value: String(total), label: 'Tasks Posted' },
+          { value: String(completed), label: 'Completed' },
+          { value: String(liveTasks.length), label: 'Live Now' },
+          { value: '$0', label: 'Platform Fee' },
+        ]);
+
+        // Fetch current bids for live tasks to populate the ticker
+        const bidResults = await Promise.all(
+          liveTasks.map(async t => {
+            try {
+              const currentBid = await getCurrentBidWithFallback(t.task_id);
+              if (currentBid.bid_amount != null && currentBid.bidder_id) {
+                let userName = currentBid.bidder_id.slice(0, 8);
+                try {
+                  const user = await getUser(currentBid.bidder_id);
+                  if (user.name) userName = user.name;
+                } catch { /* use truncated id */ }
+                return {
+                  task: t.title,
+                  from: currentBid.bid_amount !== t.starting_bid ? `$${t.starting_bid}` : null,
+                  to: `$${currentBid.bid_amount}`,
+                  user: userName,
+                };
+              }
+            } catch { /* skip this task */ }
+            return null;
+          })
+        );
+        const validBids = bidResults.filter((b): b is NonNullable<typeof b> => b !== null);
+        if (validBids.length > 0) setLiveBids(validBids);
+      })
+      .catch(() => {});
+  }, []);
+
   // Rotate bid ticker
   useEffect(() => {
+    if (liveBids.length === 0) return;
     const interval = setInterval(() => {
-      setActiveBidIdx(prev => (prev + 1) % LIVE_BIDS.length);
+      setActiveBidIdx(prev => (prev + 1) % liveBids.length);
     }, 2800);
     return () => clearInterval(interval);
-  }, []);
+  }, [liveBids]);
 
   useEffect(() => {
     if (isAuthenticated) return;
@@ -282,7 +330,7 @@ const Home: React.FC = () => {
   const featCardBorder = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
   const statDivider = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
 
-  const activeBid = LIVE_BIDS[activeBidIdx];
+  const activeBid = liveBids.length > 0 ? liveBids[activeBidIdx % liveBids.length] : null;
 
   return (
     <div
@@ -478,10 +526,10 @@ const Home: React.FC = () => {
             width: 'fit-content',
             transition: 'background 0.4s ease, border-color 0.4s ease',
           }}>
-            {STATS.map((s, i) => (
+            {liveStats.map((s, i) => (
               <div key={s.label} className="stat-item" style={{
                 padding: '16px 28px',
-                borderRight: i < STATS.length - 1 ? `1px solid ${statDivider}` : 'none',
+                borderRight: i < liveStats.length - 1 ? `1px solid ${statDivider}` : 'none',
                 textAlign: 'center',
               }}>
                 <div style={{
@@ -497,6 +545,7 @@ const Home: React.FC = () => {
           </div>
 
           {/* Live bid ticker */}
+          {activeBid && (
           <div ref={bidTickerRef} style={{
             marginTop: 28,
             display: 'flex', alignItems: 'center', gap: 12,
@@ -526,13 +575,18 @@ const Home: React.FC = () => {
               <span style={{ color: textPrimary }}>{activeBid.task}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <span style={{ textDecoration: 'line-through', color: textMuted, fontSize: 12 }}>{activeBid.from}</span>
-              <svg width="12" height="12" fill="none" stroke="#22c55e" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+              {activeBid.from && (
+                <>
+                  <span style={{ textDecoration: 'line-through', color: textMuted, fontSize: 12 }}>{activeBid.from}</span>
+                  <svg width="12" height="12" fill="none" stroke="#22c55e" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
               <span style={{ fontWeight: 700, color: '#22c55e', fontSize: 13 }}>{activeBid.to}</span>
             </div>
           </div>
+          )}
         </div>
 
         {/* Right: auth card */}
@@ -859,7 +913,7 @@ const Home: React.FC = () => {
               Ready to save on your next project?
             </h2>
             <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
-              Post your first task free. No credit card required.
+              Post your first task now!
             </p>
           </div>
 

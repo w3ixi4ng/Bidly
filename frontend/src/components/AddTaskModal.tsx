@@ -150,6 +150,8 @@ const AddTaskModal: React.FC = () => {
         return;
       }
 
+      // Task creation is handled by the Stripe webhook (payment_intent.succeeded)
+      // which calls the create-task orchestrator and triggers a WebSocket notification
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task.');

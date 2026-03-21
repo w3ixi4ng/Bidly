@@ -223,7 +223,7 @@ services:
       - bidly-net
   send-notifications:
     image: bidly/send-notifications:latest
-    build: ./backend/orchestrators/send-notification
+    build: ./backend/orchestrators/send-notifications
     container_name: send-notification
     networks:
       - bidly-net

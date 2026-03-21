@@ -21,9 +21,13 @@ import Skeleton from '../components/Skeleton';
 import type { Task, CurrentBid as CurrentBidType } from '../types';
 import type { BidResponse } from '../api/bids';
 
-type DashboardTab = 'my-tasks' | 'my-bids' | 'won';
-type TaskFilter = 'all' | 'active' | 'past';
+type DashboardTab = 'my-tasks' | 'my-bids' | 'won' | 'transactions';
+type StatusFilter = 'all' | 'pending' | 'in-progress' | 'completed' | 'no-bids' | 'pending-review' | 'accepted' | 'disputed' | 'cancelled';
+type BidStatusFilter = 'all' | 'active' | 'winning' | 'outbid' | 'ended';
 type WonFilter = 'all' | 'active' | 'under-review' | 'paid';
+type TxnFilter = 'all' | 'payments' | 'earnings' | 'refunds';
+type SortField = 'date' | 'amount';
+type SortDir = 'desc' | 'asc';
 
 function formatCountdown(endTime: string): { text: string; urgency: 'low' | 'medium' | 'high' } {
   const diff = new Date(endTime).getTime() - Date.now();
@@ -115,17 +119,40 @@ const TABS: { key: DashboardTab; label: string; icon: JSX.Element }[] = [
       </svg>
     ),
   },
+  {
+    key: 'transactions',
+    label: 'Transactions',
+    icon: (
+      <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="M2 10h20" />
+      </svg>
+    ),
+  },
 ];
 
-const TASK_FILTERS: { key: TaskFilter; label: string }[] = [
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'in-progress', label: 'In Progress' },
+  { key: 'no-bids', label: 'No Bids' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'pending-review', label: 'Pending Review' },
+  { key: 'accepted', label: 'Accepted' },
+  { key: 'disputed', label: 'Pending Revision' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
+const BID_STATUS_FILTERS: { key: BidStatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
-  { key: 'past', label: 'Past' },
+  { key: 'winning', label: 'Winning' },
+  { key: 'outbid', label: 'Outbid' },
+  { key: 'ended', label: 'Past' },
 ];
 
 const WON_FILTERS: { key: WonFilter; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
+  { key: 'active', label: 'In Progress' },
   { key: 'under-review', label: 'Under Review' },
   { key: 'paid', label: 'Paid' },
 ];
@@ -139,9 +166,12 @@ const Dashboard: React.FC = () => {
 
   const initialTab = (location.state as { tab?: DashboardTab })?.tab ?? 'my-tasks';
   const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
-  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
-  const [bidFilter, setBidFilter] = useState<TaskFilter>('all');
+  const [taskFilter, setTaskFilter] = useState<StatusFilter>('all');
+  const [bidFilter, setBidFilter] = useState<BidStatusFilter>('all');
   const [wonFilter, setWonFilter] = useState<WonFilter>('all');
+  const [txnFilter, setTxnFilter] = useState<TxnFilter>('all');
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   // Data — client tasks
   const [clientTasks, setClientTasks] = useState<Task[]>([]);
@@ -197,7 +227,7 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        if (activeTab === 'my-tasks') {
+        if (activeTab === 'my-tasks' || activeTab === 'transactions') {
           const tasks = await getTasksByClient(user.user_id);
           if (cancelled) return;
           setClientTasks(tasks);
@@ -238,7 +268,8 @@ const Dashboard: React.FC = () => {
             if (r.status === 'fulfilled') names[r.value.id] = r.value.name;
           });
           setWinnerNames(names);
-        } else if (activeTab === 'my-bids' || activeTab === 'won') {
+        }
+        if (activeTab === 'my-bids' || activeTab === 'won' || activeTab === 'transactions') {
           // If bid data already loaded, just reuse it
           if (bidDataLoaded) {
             setLoading(false);
@@ -304,6 +335,33 @@ const Dashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, [activeTab, user?.user_id, bidDataLoaded]);
 
+  // Poll pending client tasks whose start time recently passed to detect transition to in-progress
+  useEffect(() => {
+    if (activeTab !== 'my-tasks') return;
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    const pendingPastStart = clientTasks.filter(
+      t => t.auction_status === 'pending' &&
+        new Date(t.auction_start_time).getTime() <= now &&
+        now - new Date(t.auction_start_time).getTime() < fiveMinutes
+    );
+    if (pendingPastStart.length === 0) return;
+
+    const poll = setInterval(() => {
+      pendingPastStart.forEach(t => {
+        getTask(t.task_id)
+          .then(fresh => {
+            if (fresh.auction_status !== 'pending') {
+              setClientTasks(prev => prev.map(ct => ct.task_id === fresh.task_id ? fresh : ct));
+            }
+          })
+          .catch(() => {});
+      });
+    }, 5000);
+
+    return () => clearInterval(poll);
+  }, [activeTab, clientTasks]);
+
   // Countdown ticker
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -318,21 +376,29 @@ const Dashboard: React.FC = () => {
       { y: 20, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.35, stagger: 0.05, ease: 'power2.out' }
     );
-  }, [loading, activeTab, taskFilter, bidFilter, wonFilter]);
+  }, [loading, activeTab, taskFilter, bidFilter, wonFilter, txnFilter, sortField, sortDir]);
 
   // --- Derived data ---
 
-  // Filtered client tasks — active first, then past; within each group sort by newest
-  const filteredClientTasks = clientTasks.filter(task => {
+  // Generic sort helper for tasks
+  const sortTasks = (tasks: Task[]) => {
+    return [...tasks].sort((a, b) => {
+      if (sortField === 'amount') {
+        const aAmt = clientTaskBids[a.task_id]?.bid_amount ?? a.starting_bid;
+        const bAmt = clientTaskBids[b.task_id]?.bid_amount ?? b.starting_bid;
+        return sortDir === 'desc' ? bAmt - aAmt : aAmt - bAmt;
+      }
+      const aTime = new Date(a.auction_start_time).getTime();
+      const bTime = new Date(b.auction_start_time).getTime();
+      return sortDir === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+  };
+
+  // Filtered client tasks by status
+  const filteredClientTasks = sortTasks(clientTasks.filter(task => {
     if (taskFilter === 'all') return true;
-    if (taskFilter === 'active') return isTaskActive(task);
-    return !isTaskActive(task);
-  }).sort((a, b) => {
-    const aActive = isTaskActive(a) ? 0 : 1;
-    const bActive = isTaskActive(b) ? 0 : 1;
-    if (aActive !== bActive) return aActive - bActive;
-    return new Date(b.auction_start_time).getTime() - new Date(a.auction_start_time).getTime();
-  });
+    return effectiveStatus(task) === taskFilter;
+  }));
 
   // For My Bids: get the user's latest bid per task
   const latestBidPerTask: Record<string, BidResponse> = {};
@@ -361,50 +427,193 @@ const Dashboard: React.FC = () => {
     }
   });
 
-  // Sort priority: active (in-progress/completed/disputed) → under review → paid
-  const wonSortOrder = (task: Task): number => {
-    const s = effectiveStatus(task);
-    if (s === 'in-progress' || s === 'completed' || s === 'disputed') return 0;
-    if (s === 'pending-review') return 1;
-    if (s === 'accepted') return 2;
-    return 3;
-  };
-
   const wonTasks = allBidTasks
-    .filter(t => wonTaskSet.has(t.task_id))
-    .sort((a, b) => {
-      const orderDiff = wonSortOrder(a) - wonSortOrder(b);
-      if (orderDiff !== 0) return orderDiff;
-      return new Date(b.auction_end_time).getTime() - new Date(a.auction_end_time).getTime();
+    .filter(t => wonTaskSet.has(t.task_id));
+
+  const filteredWonTasks = (() => {
+    const filtered = wonTasks.filter(task => {
+      if (wonFilter === 'all') return true;
+      const s = effectiveStatus(task);
+      if (wonFilter === 'active') return s === 'in-progress' || s === 'completed' || s === 'disputed';
+      if (wonFilter === 'under-review') return s === 'pending-review';
+      if (wonFilter === 'paid') return s === 'accepted';
+      return true;
     });
+    return [...filtered].sort((a, b) => {
+      if (sortField === 'amount') {
+        const aAmt = latestBidPerTask[a.task_id]?.bid_amount ?? a.starting_bid;
+        const bAmt = latestBidPerTask[b.task_id]?.bid_amount ?? b.starting_bid;
+        return sortDir === 'desc' ? bAmt - aAmt : aAmt - bAmt;
+      }
+      const aTime = new Date(a.auction_end_time).getTime();
+      const bTime = new Date(b.auction_end_time).getTime();
+      return sortDir === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+  })();
 
-  const filteredWonTasks = wonTasks.filter(task => {
-    if (wonFilter === 'all') return true;
-    const s = effectiveStatus(task);
-    if (wonFilter === 'active') return s === 'in-progress' || s === 'completed' || s === 'disputed';
-    if (wonFilter === 'under-review') return s === 'pending-review';
-    if (wonFilter === 'paid') return s === 'accepted';
-    return true;
-  });
-
-  // Bid tasks: all tasks user has bid on (excluding won) — active first
+  // Bid tasks: all tasks user has bid on (excluding won)
   const bidTasks = allBidTasks
-    .filter(t => latestBidPerTask[t.task_id] && !wonTaskSet.has(t.task_id))
-    .sort((a, b) => {
-      const aActive = isTaskActive(a) ? 0 : 1;
-      const bActive = isTaskActive(b) ? 0 : 1;
-      if (aActive !== bActive) return aActive - bActive;
-      return new Date(b.auction_start_time).getTime() - new Date(a.auction_start_time).getTime();
-    });
+    .filter(t => latestBidPerTask[t.task_id] && !wonTaskSet.has(t.task_id));
 
   // Filtered bid tasks
-  const filteredBidTasks = bidTasks.filter(task => {
-    if (bidFilter === 'all') return true;
-    if (bidFilter === 'active') return isTaskActive(task);
-    return !isTaskActive(task);
-  });
+  const filteredBidTasks = (() => {
+    const filtered = bidTasks.filter(task => {
+      if (bidFilter === 'all') return true;
+      const active = isTaskActive(task);
+      const isWinning = allCurrentBids[task.task_id]?.bidder_id === user?.user_id;
+      if (bidFilter === 'active') return active;
+      if (bidFilter === 'winning') return active && isWinning;
+      if (bidFilter === 'outbid') return active && !isWinning;
+      if (bidFilter === 'ended') return !active;
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      if (sortField === 'amount') {
+        const aAmt = latestBidPerTask[a.task_id]?.bid_amount ?? 0;
+        const bAmt = latestBidPerTask[b.task_id]?.bid_amount ?? 0;
+        return sortDir === 'desc' ? bAmt - aAmt : aAmt - bAmt;
+      }
+      const aTime = new Date(a.auction_start_time).getTime();
+      const bTime = new Date(b.auction_start_time).getTime();
+      return sortDir === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+  })();
 
   const handleCardClick = (task: Task) => navigate(`/task/${task.task_id}`, { state: { from: 'dashboard', tab: activeTab } });
+
+  // --- Transactions derived data ---
+  type Transaction = {
+    id: string;
+    taskTitle: string;
+    taskId: string;
+    type: 'payment' | 'earning' | 'refund';
+    amount: number;
+    date: string;
+    status: string;
+  };
+
+  const transactions: Transaction[] = (() => {
+    const txns: Transaction[] = [];
+
+    // Client payments: tasks user posted where payment was captured
+    clientTasks.forEach(task => {
+      const s = effectiveStatus(task);
+      const bid = clientTaskBids[task.task_id];
+      const amount = bid?.bid_amount ?? task.starting_bid;
+
+      if (s === 'accepted') {
+        txns.push({
+          id: `pay-${task.task_id}`,
+          taskTitle: task.title,
+          taskId: task.task_id,
+          type: 'payment',
+          amount,
+          date: task.auction_end_time,
+          status: 'Released',
+        });
+      } else if (s === 'cancelled' && !isTaskActive(task)) {
+        txns.push({
+          id: `ref-${task.task_id}`,
+          taskTitle: task.title,
+          taskId: task.task_id,
+          type: 'refund',
+          amount: task.starting_bid,
+          date: task.auction_end_time,
+          status: 'Cancelled — Refunded',
+        });
+      } else if (s === 'no-bids') {
+        txns.push({
+          id: `nobid-${task.task_id}`,
+          taskTitle: task.title,
+          taskId: task.task_id,
+          type: 'refund',
+          amount: task.starting_bid,
+          date: task.auction_end_time,
+          status: 'No Bids — Refunded',
+        });
+      } else if (s === 'in-progress' || s === 'pending' || s === 'completed' || s === 'pending-review' || s === 'disputed') {
+        // Completed with no bids → refundable, not awaiting release
+        const hasBids = bid && bid.bid_amount !== null && bid.bidder_id;
+        if (s === 'completed' && !hasBids) {
+          txns.push({
+            id: `nobid-${task.task_id}`,
+            taskTitle: task.title,
+            taskId: task.task_id,
+            type: 'refund',
+            amount: task.starting_bid,
+            date: task.auction_end_time,
+            status: 'No Bids — Refunded',
+          });
+        } else {
+          txns.push({
+            id: `hold-${task.task_id}`,
+            taskTitle: task.title,
+            taskId: task.task_id,
+            type: 'payment',
+            amount: task.starting_bid,
+            date: task.auction_start_time,
+            status: s === 'pending' || s === 'in-progress' ? 'Held' : s === 'pending-review' ? 'In Review' : s === 'disputed' ? 'Disputed' : 'Awaiting Release',
+          });
+        }
+      }
+    });
+
+    // Freelancer earnings: tasks user won
+    wonTasks.forEach(task => {
+      const s = effectiveStatus(task);
+      const bid = allCurrentBids[task.task_id];
+      const amount = bid?.bid_amount ?? task.starting_bid;
+
+      if (s === 'accepted') {
+        txns.push({
+          id: `earn-${task.task_id}`,
+          taskTitle: task.title,
+          taskId: task.task_id,
+          type: 'earning',
+          amount,
+          date: task.auction_end_time,
+          status: 'Received',
+        });
+      } else {
+        txns.push({
+          id: `earn-pending-${task.task_id}`,
+          taskTitle: task.title,
+          taskId: task.task_id,
+          type: 'earning',
+          amount,
+          date: task.auction_end_time,
+          status: s === 'pending-review' ? 'In Review' : s === 'disputed' ? 'Disputed' : 'Pending',
+        });
+      }
+    });
+
+    return txns;
+  })();
+
+  const filteredTransactions = (() => {
+    const filtered = transactions.filter(txn => {
+      if (txnFilter === 'all') return true;
+      if (txnFilter === 'payments') return txn.type === 'payment';
+      if (txnFilter === 'earnings') return txn.type === 'earning';
+      if (txnFilter === 'refunds') return txn.type === 'refund';
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      if (sortField === 'amount') {
+        return sortDir === 'desc' ? b.amount - a.amount : a.amount - b.amount;
+      }
+      return sortDir === 'desc'
+        ? new Date(b.date).getTime() - new Date(a.date).getTime()
+        : new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  })();
+
+  const TXN_FILTERS: { key: TxnFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'payments', label: 'Payments' },
+    { key: 'earnings', label: 'Earnings' },
+    { key: 'refunds', label: 'Refunds' },
+  ];
 
   const statusBadge = (task: Task) => {
     const status = effectiveStatus(task);
@@ -785,55 +994,49 @@ const Dashboard: React.FC = () => {
     </div>
   );
 
-  const renderWonFilterChips = () => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-      {WON_FILTERS.map(f => (
-        <button
-          key={f.key}
-          onClick={() => setWonFilter(f.key)}
-          style={{
-            padding: '7px 18px',
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-            background: wonFilter === f.key
-              ? (isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)')
-              : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
-            color: wonFilter === f.key ? '#6366f1' : 'var(--text-secondary)',
-            border: `1px solid ${wonFilter === f.key ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
-            cursor: 'pointer',
-            transition: 'all 0.18s ease',
-          }}
-        >
-          {f.label}
-        </button>
-      ))}
+  const chipStyle = (active: boolean): React.CSSProperties => ({
+    padding: '7px 18px',
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 600,
+    background: active
+      ? (isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)')
+      : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
+    color: active ? '#6366f1' : 'var(--text-secondary)',
+    border: `1px solid ${active ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
+    cursor: 'pointer',
+    transition: 'all 0.18s ease',
+  });
+
+  const renderSortControls = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>Sort:</span>
+      <button onClick={() => setSortField('date')} style={chipStyle(sortField === 'date')}>
+        Date
+      </button>
+      <button onClick={() => setSortField('amount')} style={chipStyle(sortField === 'amount')}>
+        Amount
+      </button>
+      <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
+      <button onClick={() => setSortDir('desc')} style={chipStyle(sortDir === 'desc')}>
+        ↓
+      </button>
+      <button onClick={() => setSortDir('asc')} style={chipStyle(sortDir === 'asc')}>
+        ↑
+      </button>
     </div>
   );
 
-  const renderFilterChips = (filter: TaskFilter, setFilter: (f: TaskFilter) => void) => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-      {TASK_FILTERS.map(f => (
-        <button
-          key={f.key}
-          onClick={() => setFilter(f.key)}
-          style={{
-            padding: '7px 18px',
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-            background: filter === f.key
-              ? (isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)')
-              : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'),
-            color: filter === f.key ? '#6366f1' : 'var(--text-secondary)',
-            border: `1px solid ${filter === f.key ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
-            cursor: 'pointer',
-            transition: 'all 0.18s ease',
-          }}
-        >
-          {f.label}
-        </button>
-      ))}
+  const renderFilterBar = <T extends string>(filters: { key: T; label: string }[], current: T, setCurrent: (f: T) => void) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {filters.map(f => (
+          <button key={f.key} onClick={() => setCurrent(f.key)} style={chipStyle(current === f.key)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {renderSortControls()}
     </div>
   );
 
@@ -857,8 +1060,18 @@ const Dashboard: React.FC = () => {
         { label: 'Total', value: String(bidTasks.length) },
       ];
     }
+    if (activeTab === 'won') {
+      return [
+        { label: 'Auctions Won', value: String(wonTasks.length) },
+      ];
+    }
+    // transactions tab
+    const totalPaid = transactions.filter(t => t.type === 'payment' && t.status === 'Released').reduce((s, t) => s + t.amount, 0);
+    const totalEarned = transactions.filter(t => t.type === 'earning' && t.status === 'Received').reduce((s, t) => s + t.amount, 0);
     return [
-      { label: 'Auctions Won', value: String(wonTasks.length) },
+      { label: 'Total', value: String(transactions.length) },
+      { label: 'Paid Out', value: `$${totalPaid.toFixed(2)}` },
+      { label: 'Earned', value: `$${totalEarned.toFixed(2)}` },
     ];
   };
 
@@ -929,7 +1142,7 @@ const Dashboard: React.FC = () => {
           {TABS.map(tab => (
             <button
               key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setTaskFilter('all'); setBidFilter('all'); }}
+              onClick={() => { setActiveTab(tab.key); setTaskFilter('all'); setBidFilter('all'); setWonFilter('all'); setTxnFilter('all'); setSortField('date'); setSortDir('desc'); }}
               style={{
                 flex: 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -953,10 +1166,11 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* Sub-filter chips */}
-        {activeTab === 'my-tasks' && renderFilterChips(taskFilter, setTaskFilter)}
-        {activeTab === 'my-bids' && renderFilterChips(bidFilter, setBidFilter)}
-        {activeTab === 'won' && renderWonFilterChips()}
+        {/* Sub-filter chips + sort controls */}
+        {activeTab === 'my-tasks' && renderFilterBar(STATUS_FILTERS, taskFilter, setTaskFilter)}
+        {activeTab === 'my-bids' && renderFilterBar(BID_STATUS_FILTERS, bidFilter, setBidFilter)}
+        {activeTab === 'won' && renderFilterBar(WON_FILTERS, wonFilter, setWonFilter)}
+        {activeTab === 'transactions' && renderFilterBar(TXN_FILTERS, txnFilter, setTxnFilter)}
 
         {/* Content */}
         {loading ? renderSkeletons() : (
@@ -972,11 +1186,9 @@ const Dashboard: React.FC = () => {
                   </div>
                 </>
               ) : renderEmpty(
-                taskFilter === 'active'
-                  ? "You don't have any active auctions right now. Post a task to get started!"
-                  : taskFilter === 'past'
-                    ? "No past auctions yet. Your completed and expired auctions will show up here."
-                    : "You haven't posted any tasks yet. Create your first task to get competitive bids!"
+                taskFilter !== 'all'
+                  ? `No tasks with status "${STATUS_FILTERS.find(f => f.key === taskFilter)?.label}".`
+                  : "You haven't posted any tasks yet. Create your first task to get competitive bids!"
               )
             )}
 
@@ -984,18 +1196,16 @@ const Dashboard: React.FC = () => {
               filteredBidTasks.length > 0 ? (
                 <>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, fontWeight: 500 }}>
-                    {filteredBidTasks.length} auction{filteredBidTasks.length !== 1 ? 's' : ''}
+                    {filteredBidTasks.length} bid{filteredBidTasks.length !== 1 ? 's' : ''}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
                     {filteredBidTasks.map(renderBidTaskCard)}
                   </div>
                 </>
               ) : renderEmpty(
-                bidFilter === 'active'
-                  ? "You don't have any active bids right now. Browse the marketplace to find tasks!"
-                  : bidFilter === 'past'
-                    ? "No past bids yet. Your ended auctions will show up here."
-                    : "You haven't placed any bids yet. Browse the marketplace to find tasks to bid on!"
+                bidFilter !== 'all'
+                  ? `No ${BID_STATUS_FILTERS.find(f => f.key === bidFilter)?.label?.toLowerCase()} bids.`
+                  : "You haven't placed any bids yet. Browse the marketplace to find tasks to bid on!"
               )
             )}
 
@@ -1017,6 +1227,120 @@ const Dashboard: React.FC = () => {
                     : wonFilter === 'paid'
                       ? "No paid tasks yet."
                       : "You haven't won any auctions yet. Keep bidding to win your first task!"
+              )
+            )}
+
+            {activeTab === 'transactions' && (
+              filteredTransactions.length > 0 ? (
+                <>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, fontWeight: 500 }}>
+                    {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {filteredTransactions.map(txn => {
+                      const typeConfig = {
+                        payment: { icon: '↑', color: '#f97316', bg: 'rgba(249,115,22,0.1)', label: 'Payment' },
+                        earning: { icon: '↓', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Earning' },
+                        refund: { icon: '←', color: '#6366f1', bg: 'rgba(99,102,241,0.1)', label: 'Refund' },
+                      }[txn.type];
+
+                      const statusColor = {
+                        'Released': '#f97316',
+                        'Received': '#22c55e',
+                        'Cancelled — Refunded': '#6366f1',
+                        'Held': '#ca8a04',
+                        'Pending': '#ca8a04',
+                        'In Review': '#ea580c',
+                        'Disputed': '#dc2626',
+                        'Awaiting Release': '#ca8a04',
+                        'No Bids — Refunded': '#6b7280',
+                      }[txn.status] ?? 'var(--text-secondary)';
+
+                      return (
+                        <div
+                          key={txn.id}
+                          className="dash-card"
+                          onClick={() => navigate(`/task/${txn.taskId}`, { state: { from: 'dashboard', tab: 'transactions' } })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 14,
+                            padding: '16px 20px',
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 14,
+                            cursor: 'pointer',
+                            transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+                          }}
+                          onMouseEnter={e => {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.4)';
+                            (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(99,102,241,0.08)';
+                          }}
+                          onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                            (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                          }}
+                        >
+                          {/* Type icon */}
+                          <div style={{
+                            width: 40, height: 40, borderRadius: 10,
+                            background: typeConfig.bg,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 18, fontWeight: 700, color: typeConfig.color,
+                            flexShrink: 0,
+                          }}>
+                            {typeConfig.icon}
+                          </div>
+
+                          {/* Details */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                              <span style={{
+                                fontSize: 14, fontWeight: 700, color: 'var(--text-primary)',
+                                fontFamily: "'Space Grotesk', sans-serif",
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              }}>
+                                {txn.taskTitle}
+                              </span>
+                              <span style={{
+                                padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                                background: typeConfig.bg, color: typeConfig.color,
+                                flexShrink: 0,
+                              }}>
+                                {typeConfig.label}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                              {formatDate(txn.date)}
+                            </div>
+                          </div>
+
+                          {/* Amount + status */}
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{
+                              fontSize: 16, fontWeight: 800,
+                              color: txn.type === 'earning' ? '#22c55e' : txn.type === 'refund' ? '#6366f1' : 'var(--text-primary)',
+                              fontFamily: "'Space Grotesk', sans-serif",
+                            }}>
+                              {txn.type === 'earning' ? '+' : txn.type === 'refund' ? '+' : '-'}${txn.amount.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: statusColor, marginTop: 2 }}>
+                              {txn.status}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : renderEmpty(
+                txnFilter === 'payments'
+                  ? "No payments yet. Payments appear when you post tasks."
+                  : txnFilter === 'earnings'
+                    ? "No earnings yet. Win auctions to start earning!"
+                    : txnFilter === 'refunds'
+                      ? "No refunds yet."
+                      : "No transactions yet. Post a task or bid on one to get started!"
               )
             )}
           </div>
