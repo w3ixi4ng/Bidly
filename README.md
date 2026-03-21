@@ -8,7 +8,7 @@
 
 - Docker Desktop
 - Node Package Manager (npm)
-- kubectl
+- kubectl + gcloud CLI (for GKE deployment)
 - IDE (Any)
 
 ---

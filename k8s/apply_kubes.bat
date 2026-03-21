@@ -1,45 +1,67 @@
 @echo off
 setlocal
+
 set K8S_DIR=%~dp0
-set ROOT_DIR=%K8S_DIR%..
+if "%K8S_DIR:~-1%"=="\" set K8S_DIR=%K8S_DIR:~0,-1%
+set ROOT_DIR=%K8S_DIR%\..
 
-echo ==> Applying namespace...
-kubectl apply -f "%K8S_DIR%cluster\namespace.yaml"
-if errorlevel 1 exit /b 1
+:: 1. Namespace
+kubectl apply -f "%K8S_DIR%\cluster\namespace.yaml"
 
-echo ==> Applying managed certificate...
-kubectl apply -f "%K8S_DIR%infrastructure\ingress\managed-certificate.yaml"
-if errorlevel 1 exit /b 1
-
-echo ==> Applying secrets from .env files...
+:: 2. Secrets
 kubectl create secret generic supabase-secret --from-env-file="%ROOT_DIR%\.env.supabase" -n bidly --dry-run=client -o yaml | kubectl apply -f -
-if errorlevel 1 exit /b 1
 kubectl create secret generic stripe-secret --from-env-file="%ROOT_DIR%\.env.stripe" -n bidly --dry-run=client -o yaml | kubectl apply -f -
-if errorlevel 1 exit /b 1
 kubectl create secret generic firebase-secret --from-env-file="%ROOT_DIR%\.env.firebase" -n bidly --dry-run=client -o yaml | kubectl apply -f -
-if errorlevel 1 exit /b 1
 kubectl create secret generic twilio-secret --from-env-file="%ROOT_DIR%\.env.twilio" -n bidly --dry-run=client -o yaml | kubectl apply -f -
-if errorlevel 1 exit /b 1
 
-echo ==> Applying shared configmap...
-kubectl apply -f "%K8S_DIR%cluster\configmap.yaml"
-if errorlevel 1 exit /b 1
+:: 3. ConfigMaps
+kubectl apply -f "%K8S_DIR%\cluster\configmap.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\rabbitmq\configmap.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\kong\configmap.yaml"
 
-echo ==> Applying infrastructure...
-kubectl apply -R -f "%K8S_DIR%infrastructure"
-if errorlevel 1 exit /b 1
+:: 4. PVCs
+kubectl apply -f "%K8S_DIR%\infrastructure\rabbitmq\pvc.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\redis\pvc.yaml"
 
-echo ==> Applying services...
-kubectl apply -R -f "%K8S_DIR%services"
-if errorlevel 1 exit /b 1
+:: 5. Services
+kubectl apply -f "%K8S_DIR%\infrastructure\rabbitmq\service.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\redis\service.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\kong\service.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\kong\backendconfig.yaml"
 
-echo ==> Applying orchestrators...
-kubectl apply -R -f "%K8S_DIR%orchestrators"
-if errorlevel 1 exit /b 1
+:: 6. Deployments
+kubectl apply -f "%K8S_DIR%\infrastructure\rabbitmq\deployment.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\redis\deployment.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\kong\deployment.yaml"
 
-echo ==> Applying ingress...
-kubectl apply -f "%K8S_DIR%infrastructure\ingress\ingress.yaml"
-if errorlevel 1 exit /b 1
+:: 7. Jobs
+kubectl apply -f "%K8S_DIR%\infrastructure\rabbitmq\setup-job.yaml"
 
-echo Done.
+:: 8. App Services + Orchestrators
+kubectl apply -R -f "%K8S_DIR%\services"
+kubectl apply -R -f "%K8S_DIR%\orchestrators"
+
+:: 9. Install ArgoCD
+kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+:: 10. ArgoCD Apps
+kubectl apply -f "%ROOT_DIR%\apps\argocd-app.yaml"
+kubectl apply -f "%ROOT_DIR%\apps\monitoring.yaml"
+
+:: 11. Ingresses
+kubectl apply -f "%K8S_DIR%\infrastructure\ingress\managed-certificate.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\ingress\ingress.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\argocd\managed-certificate.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\argocd\ingress.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\monitoring\managed-certificate.yaml"
+kubectl apply -f "%K8S_DIR%\infrastructure\monitoring\ingress.yaml"
+
+:: Get ArgoCD password
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d && echo.
+
+:: Checking
+kubectl get pods -n bidly
+kubectl get svc -n bidly
+
 endlocal
