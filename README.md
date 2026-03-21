@@ -1,6 +1,6 @@
 # Bidly 🔨
 
-**Bidly** is a real-time task bidding platform where users can post tasks and receive competitive bids from service providers. Built with a microservices architecture, event-driven orchestration, and deployed on Google Cloud Platform.
+**Bidly** is a real-time task bidding platform where users can post tasks and receive competitive bids from freelancers. Built with a microservices architecture, event-driven orchestration, and deployed on Google Cloud Platform.
 
 ---
 
