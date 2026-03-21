@@ -4,7 +4,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import { getTasks } from '../api/tasks';
+import { getTasks, getTask } from '../api/tasks';
 import { getCurrentBid } from '../api/bids';
 import { getUser } from '../api/users';
 import { getUserChats } from '../api/chats';
@@ -111,6 +111,32 @@ const Tasks: React.FC = () => {
           .catch(() => {});
       }
     });
+  }, [tasks]);
+
+  // Poll pending tasks whose start time recently passed to detect transition to in-progress
+  useEffect(() => {
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    const pendingPastStart = tasks.filter(
+      t => t.auction_status === 'pending' &&
+        new Date(t.auction_start_time).getTime() <= now &&
+        now - new Date(t.auction_start_time).getTime() < fiveMinutes
+    );
+    if (pendingPastStart.length === 0) return;
+
+    const poll = setInterval(() => {
+      pendingPastStart.forEach(t => {
+        getTask(t.task_id)
+          .then(fresh => {
+            if (fresh.auction_status !== 'pending') {
+              useTaskStore.getState().upsertTask(fresh);
+            }
+          })
+          .catch(() => {});
+      });
+    }, 5000);
+
+    return () => clearInterval(poll);
   }, [tasks]);
 
   // Entrance animations

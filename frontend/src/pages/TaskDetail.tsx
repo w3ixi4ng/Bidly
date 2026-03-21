@@ -8,7 +8,7 @@ import type { BidResponse } from '../api/bids';
 import { createChat, getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
-import { getTasks, updateTask } from '../api/tasks';
+import { getTasks, getTask, updateTask } from '../api/tasks';
 import { releasePayment, refundPayment, getAccountStatus } from '../api/payment';
 import { sendMessage } from '../api/chatLogs';
 import { useChatStore } from '../store/chatStore';
@@ -126,14 +126,21 @@ const TaskDetail: React.FC = () => {
       .catch(() => {});
   }, [user?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // If task isn't in store, fetch tasks immediately instead of waiting
+  // Always fetch fresh task data when navigating to this page
   useEffect(() => {
-    if (task || tasks.length > 0) return;
-    getTasks()
-      .then(setTasks)
-      .catch(() => {})
+    if (!taskId) return;
+    getTask(taskId)
+      .then(fresh => {
+        useTaskStore.getState().upsertTask(fresh);
+      })
+      .catch(() => {
+        // If individual fetch fails and store is empty, fetch all
+        if (tasks.length === 0) {
+          getTasks().then(setTasks).catch(() => {});
+        }
+      })
       .finally(() => setLoadingTask(false));
-  }, [task, tasks.length, setTasks]);
+  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Join auction room and fetch current bid
   useEffect(() => {
@@ -1243,10 +1250,10 @@ const TaskDetail: React.FC = () => {
                   <button
                     className="btn btn-primary"
                     onClick={handlePlaceBid}
-                    disabled={bidLoading || !bidInput}
-                    style={{ width: '100%', padding: '12px' }}
+                    disabled={bidLoading || !bidInput || isWinning}
+                    style={{ width: '100%', padding: '12px', opacity: isWinning ? 0.5 : undefined }}
                   >
-                    {bidLoading ? <span className="spinner" /> : 'Place Bid'}
+                    {bidLoading ? <span className="spinner" /> : isWinning ? 'You\'re Already Winning' : 'Place Bid'}
                   </button>
 
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>

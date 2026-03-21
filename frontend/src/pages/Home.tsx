@@ -85,10 +85,10 @@ const FEATURES = [
   },
 ];
 
-const STATS = [
-  { value: '2.4k+', label: 'Tasks Posted' },
-  { value: '89%', label: 'Avg. Savings' },
-  { value: '< 2min', label: 'First Bid' },
+const STATS_FALLBACK = [
+  { value: '—', label: 'Tasks Posted' },
+  { value: '—', label: 'Completed' },
+  { value: '—', label: 'Live Now' },
   { value: '$0', label: 'Platform Fee' },
 ];
 
@@ -106,6 +106,7 @@ const Home: React.FC = () => {
   const [errors, setErrors] = useState<Partial<FormState & { general: string }>>({});
   const [loading, setLoading] = useState(false);
   const [activeBidIdx, setActiveBidIdx] = useState(0);
+  const [liveStats, setLiveStats] = useState(STATS_FALLBACK);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
@@ -120,6 +121,27 @@ const Home: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) navigate('/tasks', { replace: true });
   }, [isAuthenticated, navigate]);
+
+  // Fetch live stats from API
+  useEffect(() => {
+    getTasks()
+      .then(tasks => {
+        const total = tasks.length;
+        const completed = tasks.filter(t =>
+          t.auction_status === 'completed' || t.auction_status === 'accepted' || t.auction_status === 'pending-review'
+        ).length;
+        const live = tasks.filter(t =>
+          t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now()
+        ).length;
+        setLiveStats([
+          { value: String(total), label: 'Tasks Posted' },
+          { value: String(completed), label: 'Completed' },
+          { value: String(live), label: 'Live Now' },
+          { value: '$0', label: 'Platform Fee' },
+        ]);
+      })
+      .catch(() => {});
+  }, []);
 
   // Rotate bid ticker
   useEffect(() => {
@@ -478,10 +500,10 @@ const Home: React.FC = () => {
             width: 'fit-content',
             transition: 'background 0.4s ease, border-color 0.4s ease',
           }}>
-            {STATS.map((s, i) => (
+            {liveStats.map((s, i) => (
               <div key={s.label} className="stat-item" style={{
                 padding: '16px 28px',
-                borderRight: i < STATS.length - 1 ? `1px solid ${statDivider}` : 'none',
+                borderRight: i < liveStats.length - 1 ? `1px solid ${statDivider}` : 'none',
                 textAlign: 'center',
               }}>
                 <div style={{
