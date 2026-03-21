@@ -40,7 +40,11 @@ npm run dev
 
 ## Kubernetes Architecture Diagram
 
+![Kubernetes Architecture](assets/kubernetes.png)
+
 ## CI/CD Pipeline
+
+![CICD Pipeline](assets/cicd.png)
 
 ---
 

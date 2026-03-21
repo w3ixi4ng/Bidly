@@ -128,4 +128,4 @@ jobs:
           image-ref: bidly/${{ matrix.service }}:${{ github.sha }}
           format: table
           exit-code: 1
-          severity: CRITICAL
+          severity: CRITICAL,HIGH

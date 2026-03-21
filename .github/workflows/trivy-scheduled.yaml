@@ -1,0 +1,80 @@
+name: Trivy Scheduled Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2am
+  workflow_dispatch:  # Allow manual trigger for testing
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: users
+            manifest: k8s/services/users/deployment.yaml
+          - service: tasks
+            manifest: k8s/services/tasks/deployment.yaml
+          - service: bids
+            manifest: k8s/services/bids/deployment.yaml
+          - service: chats
+            manifest: k8s/services/chats/deployment.yaml
+          - service: chat-logs
+            manifest: k8s/services/chat-logs/deployment.yaml
+          - service: notifications
+            manifest: k8s/services/notifications/deployment.yaml
+          - service: payment
+            manifest: k8s/services/payment/deployment.yaml
+          - service: websocket
+            manifest: k8s/services/websocket/deployment.yaml
+          - service: create-task
+            manifest: k8s/orchestrators/create-task/deployment.yaml
+          - service: connect-chat
+            manifest: k8s/orchestrators/connect-chat/deployment.yaml
+          - service: handle-payment
+            manifest: k8s/orchestrators/handle-payment/deployment.yaml
+          - service: process-winner
+            manifest: k8s/orchestrators/process-winner/deployment.yaml
+          - service: send-notifications
+            manifest: k8s/orchestrators/send-notifications/deployment.yaml
+          - service: start-auction
+            manifest: k8s/orchestrators/start-auction/deployment.yaml
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-actions@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Get image ref from manifest
+        id: image
+        run: |
+          IMAGE=$(grep 'image:' ${{ matrix.manifest }} | awk '{print $2}')
+          echo "ref=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0  # Don't fail the job — just report
+
+      - name: Upload to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
