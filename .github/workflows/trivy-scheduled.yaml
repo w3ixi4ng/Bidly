@@ -61,7 +61,7 @@ jobs:
       - name: Get image ref from manifest
         id: image
         run: |
-          IMAGE=$(grep 'image:' ${{ matrix.manifest }} | awk '{print $2}')
+          IMAGE=$(grep 'image:.*docker.pkg.dev' ${{ matrix.manifest }} | awk '{print $2}')
           echo "ref=$IMAGE" >> $GITHUB_OUTPUT
 
       - name: Trivy scan
