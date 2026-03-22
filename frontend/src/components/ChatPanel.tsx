@@ -181,16 +181,27 @@ const ChatPanel: React.FC = () => {
   const divider = isDark ? 'rgba(255,255,255,0.07)' : '#e5e7eb';
   const msgBubbleOther = isDark ? 'rgba(255,255,255,0.09)' : '#f3f4f6';
 
-  const avatarEl = (initials: string, size = 36) => (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: 'white', fontSize: size * 0.33, fontWeight: 800,
-      fontFamily: "'Space Grotesk',sans-serif", flexShrink: 0,
-    }}>
-      {initials}
-    </div>
+  const avatarEl = (initials: string, size = 36, pictureUrl?: string | null) => (
+    pictureUrl ? (
+      <img
+        src={pictureUrl}
+        alt="Avatar"
+        style={{
+          width: size, height: size, borderRadius: '50%',
+          objectFit: 'cover', flexShrink: 0,
+        }}
+      />
+    ) : (
+      <div style={{
+        width: size, height: size, borderRadius: '50%',
+        background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'white', fontSize: size * 0.33, fontWeight: 800,
+        fontFamily: "'Space Grotesk',sans-serif", flexShrink: 0,
+      }}>
+        {initials}
+      </div>
+    )
   );
 
   const iconBtn = (onClick: () => void, children: React.ReactNode, title?: string) => (
@@ -235,7 +246,7 @@ const ChatPanel: React.FC = () => {
             flexShrink: 0, background: headerBg,
           }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              {avatarEl(activeOtherInitials, 34)}
+              {avatarEl(activeOtherInitials, 34, activeOther?.profile_picture_url)}
               {activeOtherId && isOnline(activeOtherId) && (
                 <span style={{
                   position: 'absolute', bottom: 0, right: 0,
@@ -266,20 +277,20 @@ const ChatPanel: React.FC = () => {
             {loadingMessages ? (
               <>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                  {avatarEl(activeOtherInitials, 28)}
+                  {avatarEl(activeOtherInitials, 28, activeOther?.profile_picture_url)}
                   <Skeleton width="55%" height="36px" style={{ borderRadius: 12 }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Skeleton width="45%" height="36px" style={{ borderRadius: 12 }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                  {avatarEl(activeOtherInitials, 28)}
+                  {avatarEl(activeOtherInitials, 28, activeOther?.profile_picture_url)}
                   <Skeleton width="65%" height="36px" style={{ borderRadius: 12 }} />
                 </div>
               </>
             ) : (messages[activeChatId] ?? []).length === 0 ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 40 }}>
-                {avatarEl(activeOtherInitials, 52)}
+                {avatarEl(activeOtherInitials, 52, activeOther?.profile_picture_url)}
                 <div style={{ fontWeight: 700, fontSize: 15, color: textPrimary, marginTop: 4 }}>{activeOtherName}</div>
                 <div style={{ fontSize: 13, color: textSecondary }}>Start the conversation</div>
               </div>
@@ -293,7 +304,7 @@ const ChatPanel: React.FC = () => {
                     alignItems: 'flex-end', gap: 6,
                     marginTop: i > 0 ? 2 : 0,
                   }}>
-                    {showAvatar ? avatarEl(activeOtherInitials, 26) : <div style={{ width: 26, flexShrink: 0 }} />}
+                    {showAvatar ? avatarEl(activeOtherInitials, 26, activeOther?.profile_picture_url) : <div style={{ width: 26, flexShrink: 0 }} />}
                     <div style={{
                       maxWidth: '72%',
                       padding: '9px 13px',
@@ -397,7 +408,7 @@ const ChatPanel: React.FC = () => {
         >
           {/* My avatar with green dot */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            {avatarEl(myInitials, 34)}
+            {avatarEl(myInitials, 34, user?.profile_picture_url)}
             <span style={{
               position: 'absolute', bottom: 0, right: 0,
               width: 10, height: 10, borderRadius: '50%',
@@ -506,7 +517,7 @@ const ChatPanel: React.FC = () => {
                       >
                         {/* Avatar */}
                         <div style={{ position: 'relative', flexShrink: 0 }}>
-                          {other ? avatarEl(initials, 44) : <Skeleton variant="circle" width={44} height={44} />}
+                          {other ? avatarEl(initials, 44, other.profile_picture_url) : <Skeleton variant="circle" width={44} height={44} />}
                           {online && (
                             <span style={{
                               position: 'absolute', bottom: 1, right: 1,

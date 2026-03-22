@@ -24,7 +24,7 @@ export async function getTasksByFreelancer(freelancer_id: string): Promise<Task[
 
 export async function updateTask(
   task_id: string,
-  payload: Partial<Pick<Task, 'auction_status' | 'freelancer_id'>>
+  payload: Partial<Pick<Task, 'auction_status' | 'freelancer_id' | 'photos'>>
 ): Promise<Task> {
   const { data } = await apiClient.put<Task>(`/tasks/${task_id}`, payload);
   return data;

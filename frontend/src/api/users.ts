@@ -36,7 +36,7 @@ export async function getUser(user_id: string): Promise<User> {
 
 export async function updateUser(
   user_id: string,
-  payload: { name?: string; stripe_connected_account_id?: string }
+  payload: { name?: string; stripe_connected_account_id?: string; profile_picture_url?: string }
 ): Promise<User> {
   const { data } = await apiClient.put<User>(`/users/${user_id}`, payload);
   return data;

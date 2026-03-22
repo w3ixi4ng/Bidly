@@ -3,6 +3,7 @@ export interface User {
   name: string | null;
   email: string;
   stripe_connected_account_id: string | null;
+  profile_picture_url: string | null;
 }
 
 export type TaskCategory = 'Design' | 'Development' | 'Writing' | 'Marketing' | 'Other';
@@ -20,6 +21,7 @@ export interface Task {
   auction_start_time: string;
   auction_end_time: string;
   auction_status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'no-bids' | 'pending-review' | 'accepted' | 'disputed';
+  photos: string[] | null;
 }
 
 export interface Bid {

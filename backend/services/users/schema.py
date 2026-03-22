@@ -13,10 +13,12 @@ class UserResponse(BaseModel):
     name: Optional[str] = None
     email: str
     stripe_connected_account_id: Optional[str] = None
+    profile_picture_url: Optional[str] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     stripe_connected_account_id: Optional[str] = None
+    profile_picture_url: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str

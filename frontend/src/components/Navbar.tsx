@@ -146,16 +146,27 @@ const Navbar: React.FC = () => {
               }}
             >
               {/* Avatar */}
-              <div style={{
-                width: 26, height: 26, borderRadius: 8,
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, color: 'white',
-                flexShrink: 0,
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}>
-                {initials}
-              </div>
+              {user?.profile_picture_url ? (
+                <img
+                  src={user.profile_picture_url}
+                  alt="Profile"
+                  style={{
+                    width: 26, height: 26, borderRadius: 8,
+                    objectFit: 'cover', flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <div style={{
+                  width: 26, height: 26, borderRadius: 8,
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: 'white',
+                  flexShrink: 0,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>
+                  {initials}
+                </div>
+              )}
               <span style={{
                 fontSize: 13, fontWeight: 600,
                 color: 'var(--text-primary)',

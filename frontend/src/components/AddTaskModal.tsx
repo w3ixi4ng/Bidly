@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   useStripe,
   useElements,
@@ -7,10 +7,12 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { capturePayment } from '../api/payment';
+import { uploadTaskPhotos } from '../api/uploads';
+import { getTasksByClient } from '../api/tasks';
 import Skeleton from './Skeleton';
 import type { TaskCategory } from '../types';
 
-type Step = 'form' | 'payment' | 'confirming' | 'done';
+type Step = 'form' | 'payment' | 'confirming' | 'uploading' | 'done';
 
 const TASK_CATEGORIES: TaskCategory[] = ['Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
@@ -44,6 +46,10 @@ const AddTaskModal: React.FC = () => {
   const [reqInput, setReqInput] = useState('');
   const [submittingNext, setSubmittingNext] = useState(false);
   const [submittingPay, setSubmittingPay] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
 
   const now = new Date();
   const oneHourLater = new Date(now.getTime() + 3600000);
@@ -88,6 +94,82 @@ const AddTaskModal: React.FC = () => {
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    const valid = files.filter(f => allowed.includes(f.type) && f.size <= 5 * 1024 * 1024);
+    const combined = [...selectedPhotos, ...valid].slice(0, 10);
+    setSelectedPhotos(combined);
+
+    // Generate previews
+    const previews = combined.map(f => URL.createObjectURL(f));
+    // Revoke old previews
+    photoPreviews.forEach(url => URL.revokeObjectURL(url));
+    setPhotoPreviews(previews);
+
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(photoPreviews[index]);
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDragStart = (index: number) => {
+    dragIndexRef.current = index;
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    const fromIndex = dragIndexRef.current;
+    if (fromIndex === null || fromIndex === targetIndex) return;
+    const reorder = <T,>(arr: T[]) => {
+      const copy = [...arr];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(targetIndex, 0, item);
+      return copy;
+    };
+    setSelectedPhotos(reorder);
+    setPhotoPreviews(reorder);
+    dragIndexRef.current = null;
+  };
+
+  // Cleanup previews on unmount
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After payment succeeds, wait for the task to appear then upload photos
+  const uploadPhotosToTask = useCallback(async () => {
+    if (selectedPhotos.length === 0) return;
+
+    // Poll the API directly for the newly created task
+    const findTaskId = async (): Promise<string | null> => {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const tasks = await getTasksByClient(user!.user_id);
+          const found = tasks.find(t => t.title === form.title.trim());
+          if (found) return found.task_id;
+        } catch {
+          // API may not be ready yet, keep polling
+        }
+      }
+      return null;
+    };
+
+    const taskId = await findTaskId();
+    if (!taskId) {
+      console.error('Could not find newly created task for photo upload');
+      return;
+    }
+
+    // Upload files and persist via upload-photo orchestrator
+    await uploadTaskPhotos(taskId, selectedPhotos);
+  }, [selectedPhotos, user?.user_id, form.title]);
 
   const handleNext = async () => {
     if (!validateForm()) return;
@@ -152,6 +234,16 @@ const AddTaskModal: React.FC = () => {
 
       // Task creation is handled by the Stripe webhook (payment_intent.succeeded)
       // which calls the create-task orchestrator and triggers a WebSocket notification
+
+      if (selectedPhotos.length > 0) {
+        setStep('uploading');
+        try {
+          await uploadPhotosToTask();
+        } catch (err) {
+          console.error('Photo upload failed:', err);
+        }
+      }
+
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task.');
@@ -174,7 +266,7 @@ const AddTaskModal: React.FC = () => {
     },
   };
 
-  const isProcessing = step === 'confirming';
+  const isProcessing = step === 'confirming' || step === 'uploading';
 
   return (
     <div className="modal-overlay" onClick={() => !isProcessing && setAddTaskModalOpen(false)}>
@@ -187,7 +279,7 @@ const AddTaskModal: React.FC = () => {
           <h2 className="modal-title">
             {step === 'form' && 'Create New Task'}
             {step === 'payment' && 'Payment'}
-            {step === 'confirming' && 'Processing...'}
+            {(step === 'confirming' || step === 'uploading') && 'Processing...'}
             {step === 'done' && 'Task Created!'}
           </h2>
           {!isProcessing && step !== 'done' && (
@@ -390,6 +482,80 @@ const AddTaskModal: React.FC = () => {
               )}
             </div>
 
+            {/* Photos (optional) */}
+            <div className="form-group">
+              <label className="form-label">Photos (optional)</label>
+              <div
+                onClick={() => photoInputRef.current?.click()}
+                style={{
+                  border: '2px dashed var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  fontSize: 13,
+                  transition: 'border-color 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 6 }}>
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+                <div>Click to add photos (max 10, 5MB each)</div>
+                <div style={{ fontSize: 11, marginTop: 2 }}>JPEG, PNG, WebP</div>
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={handlePhotoSelect}
+                style={{ display: 'none' }}
+              />
+              {photoPreviews.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {photoPreviews.map((src, i) => (
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => handleDragStart(i)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => handleDrop(i)}
+                      style={{ position: 'relative', width: 64, height: 64, cursor: 'grab' }}
+                    >
+                      <img
+                        src={src}
+                        alt={`Photo ${i + 1}`}
+                        draggable={false}
+                        style={{
+                          width: 64, height: 64, objectFit: 'cover',
+                          borderRadius: 8, border: '1px solid var(--border)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        style={{
+                          position: 'absolute', top: -6, right: -6,
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--text-secondary)', color: 'white', border: 'none',
+                          cursor: 'pointer', fontSize: 12, lineHeight: 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {error && <span className="error-msg">{error}</span>}
 
             <button
@@ -460,7 +626,7 @@ const AddTaskModal: React.FC = () => {
             <Skeleton height="20px" width="80%" />
             <Skeleton height="48px" />
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-              Confirming payment...
+              {step === 'uploading' ? 'Uploading photos...' : 'Confirming payment...'}
             </div>
           </div>
         )}

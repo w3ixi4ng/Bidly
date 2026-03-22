@@ -17,6 +17,7 @@ class TaskResponse(BaseModel):
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
     auction_status: str
+    photos: Optional[list[str]] = None
 
 class TaskListResponse(BaseModel):
     tasks: list[TaskResponse]
@@ -46,3 +47,4 @@ class TaskUpdate(BaseModel):
     auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids", "pending-review", "accepted", "disputed"]] = None
     auction_start_time: Optional[AwareDatetime] = None
     auction_end_time: Optional[AwareDatetime] = None
+    photos: Optional[list[str]] = None
