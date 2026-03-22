@@ -108,9 +108,10 @@ async def refresh_token(body: dict):
 
 
 @app.get("/users", response_model=list[UserResponse])
-async def get_all_users():
+async def get_all_users(limit: int = 50, offset: int = 0):
     users = supabase_auth.get_all_users()
-    return [UserResponse(**user) for user in users]
+    paginated = users[offset:offset + limit]
+    return [UserResponse(**user) for user in paginated]
 
 
 @app.get("/users/{user_id}", response_model=UserResponse)

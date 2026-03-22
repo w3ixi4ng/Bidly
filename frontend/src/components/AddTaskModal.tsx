@@ -207,8 +207,7 @@ const AddTaskModal: React.FC = () => {
 
     const taskId = await findTaskId();
     if (!taskId) {
-      console.error('Could not find newly created task for photo upload');
-      return;
+      throw new Error('Could not find the newly created task. Your photos were not uploaded, but the task was created successfully.');
     }
 
     // Upload thumbnail and photos in parallel via orchestrator
@@ -299,7 +298,8 @@ const AddTaskModal: React.FC = () => {
         try {
           await uploadPhotosToTask();
         } catch (err) {
-          console.error('Photo upload failed:', err);
+          const msg = err instanceof Error ? err.message : 'Photo upload failed.';
+          setError(`Task created, but: ${msg}`);
         }
       }
 

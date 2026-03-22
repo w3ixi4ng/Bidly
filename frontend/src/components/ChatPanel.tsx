@@ -128,14 +128,18 @@ const ChatPanel: React.FC = () => {
     if (!recipientId) return;
 
     const text = sendText.trim();
+    const chatId = activeChatId;
     setSendText('');
     setSendError('');
     setSending(true);
-    addMessage(activeChatId, { sender_id: user.user_id, message: text, timestamp: new Date().toISOString() });
+    addMessage(chatId, { sender_id: user.user_id, message: text, timestamp: new Date().toISOString() });
 
     try {
-      await sendMessage({ chat_id: activeChatId, sender_id: user.user_id, recipient_id: recipientId, message: text });
+      await sendMessage({ chat_id: chatId, sender_id: user.user_id, recipient_id: recipientId, message: text });
     } catch (err) {
+      // Remove the optimistic message on failure
+      const current = useChatStore.getState().messages[chatId] ?? [];
+      setMessages(chatId, current.slice(0, -1));
       setSendError(err instanceof Error ? err.message : 'Failed to send.');
     } finally {
       setSending(false);

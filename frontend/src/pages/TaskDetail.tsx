@@ -233,9 +233,11 @@ const TaskDetail: React.FC = () => {
       timestamp: new Date().toISOString(),
     };
     setBidHistory(prev => {
-      // Avoid duplicate if same bidder+amount already at top
-      const top = prev[0];
-      if (top && top.bidder_id === newEntry.bidder_id && top.bid_amount === newEntry.bid_amount) return prev;
+      // Avoid duplicate if same bidder+amount already exists anywhere in history
+      const isDuplicate = prev.some(
+        b => b.bidder_id === newEntry.bidder_id && b.bid_amount === newEntry.bid_amount
+      );
+      if (isDuplicate) return prev;
       return [newEntry, ...prev];
     });
     // Resolve bidder name if not yet known

@@ -76,6 +76,8 @@ def start_auction(ch, method, properties, body):
     except pika.exceptions.ChannelClosedByBroker as e:
         print(f"Channel closed by broker, reconnecting: {e}")
         reconnect_channel()
+        # Message will be redelivered on the new channel's consumer; stop processing here
+        return
 
     except Exception as e:
         print(f"Failed to process message: {e}")

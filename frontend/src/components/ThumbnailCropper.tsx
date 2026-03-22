@@ -16,6 +16,7 @@ const ThumbnailCropper: React.FC<ThumbnailCropperProps> = ({ file, onCrop, onCan
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const [scale, setScale] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -50,6 +51,10 @@ const ThumbnailCropper: React.FC<ThumbnailCropperProps> = ({ file, onCrop, onCan
         y: (CROP_H - img.height * minScale) / 2,
       });
       setImgLoaded(true);
+      setImgError(false);
+    };
+    img.onerror = () => {
+      setImgError(true);
     };
     img.src = url;
     return () => URL.revokeObjectURL(url);
@@ -164,6 +169,19 @@ const ThumbnailCropper: React.FC<ThumbnailCropperProps> = ({ file, onCrop, onCan
       onCrop(cropped);
     }, 'image/jpeg', 0.9);
   };
+
+  if (imgError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '24px 0' }}>
+        <div style={{ fontSize: 14, color: '#ef4444' }}>
+          Failed to load image. The file may be corrupted or unsupported.
+        </div>
+        <button type="button" className="btn btn-secondary" onClick={onCancel}>
+          Go Back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

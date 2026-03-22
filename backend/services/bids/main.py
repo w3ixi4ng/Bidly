@@ -16,8 +16,18 @@ channel = None
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global rabbitmq_connection, channel
-    rabbitmq_connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
-    channel = rabbitmq_connection.channel()
+    import time
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            rabbitmq_connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
+            channel = rabbitmq_connection.channel()
+            break
+        except pika.exceptions.AMQPConnectionError:
+            if attempt == max_retries - 1:
+                raise
+            print(f"RabbitMQ not ready, retrying in 3s... (attempt {attempt + 1}/{max_retries})")
+            time.sleep(3)
     yield
     if rabbitmq_connection:
         rabbitmq_connection.close()

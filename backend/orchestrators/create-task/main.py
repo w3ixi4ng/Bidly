@@ -88,30 +88,36 @@ async def create_task(body: CreateTaskRequest):
         "auction_end_time": body.auction_end_time.isoformat(),
     }).encode()
 
-    if delay_ms > 0:
-        channel = await rabbitmq_connection.channel()
-        await channel.default_exchange.publish(
-            aio_pika.Message(
-                body=auction_payload,
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                expiration=delay_ms,
-            ),
-            routing_key="auction_pending",
-        )
-    else:
-        await bidly_exchange.publish(
-            aio_pika.Message(
-                body=auction_payload,
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            ),
-            routing_key="start.auction",
-        )
+    try:
+        if delay_ms > 0:
+            channel = await rabbitmq_connection.channel()
+            await channel.default_exchange.publish(
+                aio_pika.Message(
+                    body=auction_payload,
+                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                    expiration=delay_ms,
+                ),
+                routing_key="auction_pending",
+            )
+        else:
+            await bidly_exchange.publish(
+                aio_pika.Message(
+                    body=auction_payload,
+                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                ),
+                routing_key="start.auction",
+            )
 
-    # Notify WebSocket for live home feed
-    await bidly_exchange.publish(
-        aio_pika.Message(body=json.dumps(task).encode()),
-        routing_key="task.created.websocket",
-    )
+        # Notify WebSocket for live home feed
+        await bidly_exchange.publish(
+            aio_pika.Message(body=json.dumps(task).encode()),
+            routing_key="task.created.websocket",
+        )
+    except Exception as e:
+        # Compensate: delete the orphaned task since auction scheduling failed
+        async with httpx.AsyncClient() as client:
+            await client.delete(f"{TASKS_URL}/tasks/{task['task_id']}")
+        raise HTTPException(status_code=500, detail=f"Task created but auction scheduling failed: {str(e)}")
 
     return task
 
