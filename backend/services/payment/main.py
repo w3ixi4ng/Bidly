@@ -81,8 +81,8 @@ def capture_payment_intent(payment_data: CapturePayment):
         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
         metadata={
             "client_id": payment_data.client_id,
-            "title": payment_data.title,
-            "description": payment_data.description,
+            "title": payment_data.title[:500],
+            "description": payment_data.description[:500],
             "category": payment_data.category,
             "auction_start_time": payment_data.auction_start_time.isoformat(),
             "auction_end_time": payment_data.auction_end_time.isoformat(),

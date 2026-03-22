@@ -31,3 +31,19 @@ export async function uploadTaskPhotos(
   );
   return data;
 }
+
+export async function uploadTaskThumbnail(
+  taskId: string,
+  file: File
+): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('task_id', taskId);
+  formData.append('file', file);
+
+  const { data } = await apiClient.post<{ url: string }>(
+    '/upload-photo/task-thumbnail',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return data;
+}

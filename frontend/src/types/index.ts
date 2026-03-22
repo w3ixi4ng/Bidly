@@ -22,6 +22,7 @@ export interface Task {
   auction_end_time: string;
   auction_status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'no-bids' | 'pending-review' | 'accepted' | 'disputed';
   photos: string[] | null;
+  thumbnail: string | null;
 }
 
 export interface Bid {

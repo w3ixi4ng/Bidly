@@ -608,8 +608,8 @@ const TaskDetail: React.FC = () => {
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
         <Navbar />
         <div className="page-container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 32, alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: 32, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
               <Skeleton height="40px" width="70%" />
               <Skeleton height="16px" />
               <Skeleton height="16px" width="80%" />
@@ -650,13 +650,13 @@ const TaskDetail: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr minmax(0, 380px)',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',
             gap: 32,
             alignItems: 'start',
           }}
         >
           {/* Left column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
             {/* Title + status */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
@@ -666,6 +666,8 @@ const TaskDetail: React.FC = () => {
                     fontWeight: 800,
                     color: 'var(--text-primary)',
                     lineHeight: 1.2,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {task.title}
@@ -723,6 +725,8 @@ const TaskDetail: React.FC = () => {
                   lineHeight: 1.7,
                   fontSize: 15,
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                 }}
               >
                 {task.description}
@@ -935,77 +939,6 @@ const TaskDetail: React.FC = () => {
               </button>
             )}
 
-            {/* Bid History */}
-            <div
-              style={{
-                background: 'var(--bg-secondary)',
-                borderRadius: 'var(--radius)',
-                padding: '20px',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Bid History ({bidHistory.length})
-              </div>
-              {bidHistoryLoading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[1, 2, 3].map(i => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                      <Skeleton variant="text" width="120px" height="14px" />
-                      <Skeleton variant="text" width="80px" height="14px" />
-                    </div>
-                  ))}
-                </div>
-              ) : bidHistory.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '12px 0' }}>
-                  No bids have been placed yet.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {bidHistory.map((bid, i) => (
-                    <div
-                      key={bid.bid_id ?? i}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 0',
-                        borderBottom: i < bidHistory.length - 1 ? '1px solid var(--border)' : 'none',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {i === 0 && (
-                          <span style={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            background: '#6366f1', boxShadow: '0 0 6px #6366f1',
-                            display: 'inline-block', flexShrink: 0,
-                          }} />
-                        )}
-                        <span style={{
-                          fontSize: 13, fontWeight: i === 0 ? 700 : 500,
-                          color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        }}>
-                          {bidderNames[bid.bidder_id] ?? bid.bidder_id.slice(0, 8) + '...'}
-                          {bid.bidder_id === user?.user_id && (
-                            <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4, fontWeight: 700 }}>(you)</span>
-                          )}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          fontSize: 14, fontWeight: 700,
-                          color: i === 0 ? '#6366f1' : 'var(--text-primary)',
-                          fontFamily: "'Space Grotesk', sans-serif",
-                        }}>
-                          ${bid.bid_amount.toFixed(2)}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
-                          {new Date(bid.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Right column — Bid Panel */}
@@ -1382,6 +1315,79 @@ const TaskDetail: React.FC = () => {
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
                     Lower bid wins. Bids are binding.
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* Bid History */}
+            <div
+              style={{
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius)',
+                padding: '20px',
+                border: '1px solid var(--border)',
+                marginTop: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Bid History ({bidHistory.length})
+              </div>
+              {bidHistoryLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                      <Skeleton variant="text" width="120px" height="14px" />
+                      <Skeleton variant="text" width="80px" height="14px" />
+                    </div>
+                  ))}
+                </div>
+              ) : bidHistory.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '12px 0' }}>
+                  No bids have been placed yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {bidHistory.map((bid, i) => (
+                    <div
+                      key={bid.bid_id ?? i}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 0',
+                        borderBottom: i < bidHistory.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {i === 0 && (
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: '#6366f1', boxShadow: '0 0 6px #6366f1',
+                            display: 'inline-block', flexShrink: 0,
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: 13, fontWeight: i === 0 ? 700 : 500,
+                          color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        }}>
+                          {bidderNames[bid.bidder_id] ?? bid.bidder_id.slice(0, 8) + '...'}
+                          {bid.bidder_id === user?.user_id && (
+                            <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4, fontWeight: 700 }}>(you)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 700,
+                          color: i === 0 ? '#6366f1' : 'var(--text-primary)',
+                          fontFamily: "'Space Grotesk', sans-serif",
+                        }}>
+                          ${bid.bid_amount.toFixed(2)}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
+                          {new Date(bid.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

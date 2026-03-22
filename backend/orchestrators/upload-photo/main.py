@@ -106,5 +106,42 @@ async def upload_task_photos(
     return {"urls": new_urls, "all_photos": all_photos}
 
 
+@app.post("/upload-photo/task-thumbnail")
+async def upload_task_thumbnail(
+    task_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """
+    Orchestrates task thumbnail upload:
+    1. Upload file to photos service (Supabase Storage)
+    2. Update task thumbnail via tasks service (Supabase DB)
+    """
+    file_bytes = await file.read()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Step 1: Upload to photos service (reuse task-photos bucket, single file)
+        upload_res = await client.post(
+            f"{PHOTOS_URL}/uploads/task-photos",
+            data={"task_id": task_id},
+            files=[("files", (file.filename, file_bytes, file.content_type))],
+        )
+        if upload_res.status_code != 200:
+            detail = upload_res.json().get("detail", "Upload failed")
+            raise HTTPException(status_code=upload_res.status_code, detail=detail)
+
+        url = upload_res.json()["urls"][0]
+
+        # Step 2: Persist thumbnail URL via tasks service
+        update_res = await client.put(
+            f"{TASKS_URL}/tasks/{task_id}",
+            json={"thumbnail": url},
+        )
+        if update_res.status_code != 200:
+            detail = update_res.json().get("detail", "Failed to update task")
+            raise HTTPException(status_code=update_res.status_code, detail=detail)
+
+    return {"url": url}
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8051)
