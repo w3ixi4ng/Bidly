@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { getUser, updateUser } from '../api/users';
 import { createConnectedAccount, getAccountStatus, getOnboardingLink } from '../api/payment';
+import { uploadProfilePicture } from '../api/uploads';
 import Skeleton from './Skeleton';
 
 const ProfileModal: React.FC = () => {
@@ -18,6 +19,9 @@ const ProfileModal: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [stripeOnboarded, setStripeOnboarded] = useState<boolean | null>(null);
   const [resumingOnboarding, setResumingOnboarding] = useState(false);
+  const [uploadingPic, setUploadingPic] = useState(false);
+  const [picError, setPicError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch fresh profile on open to ensure stripe_id and name are current
   useEffect(() => {
@@ -51,6 +55,34 @@ const ProfileModal: React.FC = () => {
       setConnectError(err instanceof Error ? err.message : 'Failed to get onboarding link.');
     } finally {
       setResumingOnboarding(false);
+    }
+  };
+
+  const handlePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setPicError('Only JPEG, PNG, and WebP files are allowed.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPicError('File must be under 5 MB.');
+      return;
+    }
+
+    setPicError('');
+    setUploadingPic(true);
+    try {
+      const { url } = await uploadProfilePicture(user.user_id, file);
+      patchUser({ profile_picture_url: url });
+    } catch (err) {
+      setPicError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploadingPic(false);
+      // Reset so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -117,14 +149,56 @@ const ProfileModal: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Avatar + basic info */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'white', fontSize: 20, fontWeight: 800, flexShrink: 0,
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}>
-                {initials}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  position: 'relative', width: 56, height: 56, flexShrink: 0, cursor: 'pointer',
+                }}
+                title="Change profile picture"
+              >
+                {user.profile_picture_url ? (
+                  <img
+                    src={user.profile_picture_url}
+                    alt="Profile"
+                    style={{
+                      width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontSize: 20, fontWeight: 800,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    {initials}
+                  </div>
+                )}
+                {/* + badge */}
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2,
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: 'var(--accent, #6366f1)',
+                  border: '2px solid var(--bg, #fff)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {uploadingPic ? (
+                    <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: 'white' }} />
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePictureUpload}
+                  style={{ display: 'none' }}
+                />
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>
@@ -133,6 +207,7 @@ const ProfileModal: React.FC = () => {
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
                   {user.email}
                 </div>
+                {picError && <div className="error-msg" style={{ marginTop: 4 }}>{picError}</div>}
               </div>
             </div>
 

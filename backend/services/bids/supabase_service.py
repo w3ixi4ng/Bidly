@@ -10,15 +10,17 @@ class SupabaseService:
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
 
+    def _execute(self, query):
+        response = query.execute()
+        if hasattr(response, 'data'):
+            return response.data
+        raise Exception(f"Supabase query failed: {response}")
 
     def create_bid(self, bid_data: dict):
-        return self.client.schema("bids").table("bids").insert(bid_data).execute().data
-    
+        return self._execute(self.client.schema("bids").table("bids").insert(bid_data))
 
     def get_bids_by_task(self, task_id: str):
-        return self.client.schema("bids").table("bids").select("*").eq("task_id", task_id).execute().data
+        return self._execute(self.client.schema("bids").table("bids").select("*").eq("task_id", task_id))
 
     def get_bids_by_user(self, bidder_id: str):
-        return self.client.schema("bids").table("bids").select("*").eq("bidder_id", bidder_id).execute().data
-
-
+        return self._execute(self.client.schema("bids").table("bids").select("*").eq("bidder_id", bidder_id))

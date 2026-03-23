@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   useStripe,
   useElements,
@@ -7,10 +7,14 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { capturePayment } from '../api/payment';
+import { uploadTaskPhotos, uploadTaskThumbnail } from '../api/uploads';
+import { getTask, getTasksByClient } from '../api/tasks';
+import { useTaskStore } from '../store/taskStore';
 import Skeleton from './Skeleton';
+import ThumbnailCropper from './ThumbnailCropper';
 import type { TaskCategory } from '../types';
 
-type Step = 'form' | 'payment' | 'confirming' | 'done';
+type Step = 'form' | 'payment' | 'confirming' | 'uploading' | 'done';
 
 const TASK_CATEGORIES: TaskCategory[] = ['Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
@@ -35,6 +39,7 @@ const AddTaskModal: React.FC = () => {
   const { user } = useAuthStore();
   const { isDark } = useUIStore();
   const { setAddTaskModalOpen } = useUIStore();
+  const { upsertTask } = useTaskStore();
 
   const [step, setStep] = useState<Step>('form');
   const [clientSecret, setClientSecret] = useState('');
@@ -44,6 +49,16 @@ const AddTaskModal: React.FC = () => {
   const [reqInput, setReqInput] = useState('');
   const [submittingNext, setSubmittingNext] = useState(false);
   const [submittingPay, setSubmittingPay] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [photoLimitMsg, setPhotoLimitMsg] = useState('');
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<File | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   const now = new Date();
   const oneHourLater = new Date(now.getTime() + 3600000);
@@ -89,7 +104,132 @@ const AddTaskModal: React.FC = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    const valid = files.filter(f => allowed.includes(f.type) && f.size <= 5 * 1024 * 1024);
+    const total = [...selectedPhotos, ...valid];
+    if (total.length > 10) {
+      setPhotoLimitMsg('Maximum 10 photos allowed.');
+    } else {
+      setPhotoLimitMsg('');
+    }
+    const combined = total.slice(0, 10);
+    setSelectedPhotos(combined);
+
+    // Generate previews
+    const previews = combined.map(f => URL.createObjectURL(f));
+    // Revoke old previews
+    photoPreviews.forEach(url => URL.revokeObjectURL(url));
+    setPhotoPreviews(previews);
+
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(photoPreviews[index]);
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDragStart = (index: number) => {
+    dragIndexRef.current = index;
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    const fromIndex = dragIndexRef.current;
+    if (fromIndex === null || fromIndex === targetIndex) return;
+    const reorder = <T,>(arr: T[]) => {
+      const copy = [...arr];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(targetIndex, 0, item);
+      return copy;
+    };
+    setSelectedPhotos(reorder);
+    setPhotoPreviews(reorder);
+    dragIndexRef.current = null;
+  };
+
+  const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024) return;
+    setCropSource(file);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+  };
+
+  const handleCropConfirm = (croppedFile: File) => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(croppedFile);
+    setThumbnailPreview(URL.createObjectURL(croppedFile));
+    setCropSource(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropSource(null);
+  };
+
+  const removeThumbnail = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+  };
+
+  // Cleanup previews on unmount
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+      if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasUploads = selectedPhotos.length > 0 || thumbnailFile !== null;
+
+  // After payment succeeds, wait for the task to appear then upload photos + thumbnail
+  const uploadPhotosToTask = useCallback(async () => {
+    if (!hasUploads) return;
+
+    // Poll the API directly for the newly created task
+    const findTaskId = async (): Promise<string | null> => {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const tasks = await getTasksByClient(user!.user_id);
+          const found = tasks.find(t => t.title === form.title.trim());
+          if (found) return found.task_id;
+        } catch {
+          // API may not be ready yet, keep polling
+        }
+      }
+      return null;
+    };
+
+    const taskId = await findTaskId();
+    if (!taskId) {
+      throw new Error('Could not find the newly created task. Your photos were not uploaded, but the task was created successfully.');
+    }
+
+    // Upload thumbnail and photos in parallel via orchestrator
+    await Promise.all([
+      thumbnailFile ? uploadTaskThumbnail(taskId, thumbnailFile) : Promise.resolve(),
+      selectedPhotos.length > 0 ? uploadTaskPhotos(taskId, selectedPhotos) : Promise.resolve(),
+    ]);
+
+    // Refresh the task in the store so the thumbnail/photos show immediately
+    try {
+      const updatedTask = await getTask(taskId);
+      upsertTask(updatedTask);
+    } catch {
+      // Non-critical — task will refresh on next page load
+    }
+  }, [hasUploads, thumbnailFile, selectedPhotos, user?.user_id, form.title, upsertTask]);
+
   const handleNext = async () => {
+    if (cropSource) {
+      setError('Please confirm your thumbnail crop before proceeding.');
+      return;
+    }
     if (!validateForm()) return;
     setError('');
     setSubmittingNext(true);
@@ -152,6 +292,17 @@ const AddTaskModal: React.FC = () => {
 
       // Task creation is handled by the Stripe webhook (payment_intent.succeeded)
       // which calls the create-task orchestrator and triggers a WebSocket notification
+
+      if (hasUploads) {
+        setStep('uploading');
+        try {
+          await uploadPhotosToTask();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Photo upload failed.';
+          setError(`Task created, but: ${msg}`);
+        }
+      }
+
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task.');
@@ -174,10 +325,27 @@ const AddTaskModal: React.FC = () => {
     },
   };
 
-  const isProcessing = step === 'confirming';
+  const isProcessing = step === 'confirming' || step === 'uploading';
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const handleCloseAttempt = () => {
+    if (isProcessing) return;
+    if (step === 'done') {
+      setAddTaskModalOpen(false);
+      return;
+    }
+    // If form has any data, ask for confirmation
+    const hasData = form.title.trim() || form.description.trim() || form.starting_bid
+      || requirements.length > 0 || selectedPhotos.length > 0 || thumbnailFile;
+    if (hasData) {
+      setShowCloseConfirm(true);
+    } else {
+      setAddTaskModalOpen(false);
+    }
+  };
 
   return (
-    <div className="modal-overlay" onClick={() => !isProcessing && setAddTaskModalOpen(false)}>
+    <div className="modal-overlay" onClick={handleCloseAttempt}>
       <div
         className="modal-box"
         style={{ maxWidth: 520 }}
@@ -187,11 +355,11 @@ const AddTaskModal: React.FC = () => {
           <h2 className="modal-title">
             {step === 'form' && 'Create New Task'}
             {step === 'payment' && 'Payment'}
-            {step === 'confirming' && 'Processing...'}
+            {(step === 'confirming' || step === 'uploading') && 'Processing...'}
             {step === 'done' && 'Task Created!'}
           </h2>
           {!isProcessing && step !== 'done' && (
-            <button className="modal-close" onClick={() => setAddTaskModalOpen(false)}>
+            <button className="modal-close" onClick={handleCloseAttempt}>
               ×
             </button>
           )}
@@ -205,6 +373,7 @@ const AddTaskModal: React.FC = () => {
               <input
                 className="form-input"
                 value={form.title}
+                maxLength={100}
                 onChange={(e) => updateField('title', e.target.value)}
                 placeholder="e.g. Build a landing page"
               />
@@ -216,6 +385,7 @@ const AddTaskModal: React.FC = () => {
               <textarea
                 className="form-input"
                 value={form.description}
+                maxLength={500}
                 onChange={(e) => updateField('description', e.target.value)}
                 placeholder="Describe the task in detail..."
                 rows={4}
@@ -231,26 +401,29 @@ const AddTaskModal: React.FC = () => {
                 <input
                   className="form-input"
                   value={reqInput}
+                  maxLength={200}
                   onChange={(e) => setReqInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       const trimmed = reqInput.trim();
-                      if (trimmed && !requirements.includes(trimmed)) {
+                      if (trimmed && !requirements.includes(trimmed) && requirements.length < 100) {
                         setRequirements((prev) => [...prev, trimmed]);
                         setReqInput('');
                       }
                     }
                   }}
-                  placeholder="e.g. Must be responsive"
+                  placeholder={requirements.length >= 100 ? 'Max 100 requirements reached' : 'e.g. Must be responsive'}
+                  disabled={requirements.length >= 100}
                   style={{ flex: 1 }}
                 />
                 <button
                   type="button"
                   className="btn btn-secondary"
+                  disabled={requirements.length >= 100}
                   onClick={() => {
                     const trimmed = reqInput.trim();
-                    if (trimmed && !requirements.includes(trimmed)) {
+                    if (trimmed && !requirements.includes(trimmed) && requirements.length < 100) {
                       setRequirements((prev) => [...prev, trimmed]);
                       setReqInput('');
                     }
@@ -332,10 +505,15 @@ const AddTaskModal: React.FC = () => {
               <label className="form-label">Starting Amount ($) *</label>
               <input
                 className="form-input"
-                type="number"
-                min={1}
+                type="text"
+                inputMode="decimal"
                 value={form.starting_bid}
-                onChange={(e) => updateField('starting_bid', e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    updateField('starting_bid', val);
+                  }
+                }}
                 placeholder="100"
               />
               {formErrors.starting_bid && (
@@ -388,6 +566,159 @@ const AddTaskModal: React.FC = () => {
               {formErrors.auction_end_time && (
                 <span className="error-msg">{formErrors.auction_end_time}</span>
               )}
+            </div>
+
+            {/* Thumbnail (optional) */}
+            <div className="form-group">
+              <label className="form-label">Thumbnail (optional)</label>
+              {cropSource ? (
+                <ThumbnailCropper
+                  file={cropSource}
+                  onCrop={handleCropConfirm}
+                  onCancel={handleCropCancel}
+                />
+              ) : thumbnailPreview ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ position: 'relative', width: 120, height: 60 }}>
+                    <img
+                      src={thumbnailPreview}
+                      alt="Thumbnail"
+                      style={{
+                        width: 120, height: 60, objectFit: 'cover',
+                        borderRadius: 8, border: '1px solid var(--border)',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={removeThumbnail}
+                      style={{
+                        position: 'absolute', top: -6, right: -6,
+                        width: 20, height: 20, borderRadius: '50%',
+                        background: 'var(--text-secondary)', color: 'white', border: 'none',
+                        cursor: 'pointer', fontSize: 12, lineHeight: 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    style={{ fontSize: 12, padding: '6px 12px' }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  style={{
+                    border: '2px dashed var(--border)',
+                    borderRadius: 'var(--radius)',
+                    padding: '14px 20px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    fontSize: 13,
+                    transition: 'border-color 0.2s',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                  <span>Add a cover image for the task card</span>
+                </div>
+              )}
+              <input
+                ref={thumbnailInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleThumbnailSelect}
+                style={{ display: 'none' }}
+              />
+            </div>
+
+            {/* Photos (optional) */}
+            <div className="form-group">
+              <label className="form-label">Photos (optional)</label>
+              <div
+                onClick={() => photoInputRef.current?.click()}
+                style={{
+                  border: '2px dashed var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '20px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  fontSize: 13,
+                  transition: 'border-color 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 6 }}>
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+                <div>Click to add photos (max 10, 5MB each)</div>
+                <div style={{ fontSize: 11, marginTop: 2 }}>JPEG, PNG, WebP</div>
+              </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={handlePhotoSelect}
+                style={{ display: 'none' }}
+              />
+              {photoPreviews.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {photoPreviews.map((src, i) => (
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={() => handleDragStart(i)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => handleDrop(i)}
+                      style={{ position: 'relative', width: 64, height: 64, cursor: 'grab' }}
+                    >
+                      <img
+                        src={src}
+                        alt={`Photo ${i + 1}`}
+                        draggable={false}
+                        onClick={() => setPreviewIndex(i)}
+                        style={{
+                          width: 64, height: 64, objectFit: 'cover',
+                          borderRadius: 8, border: '1px solid var(--border)',
+                          cursor: 'pointer',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        style={{
+                          position: 'absolute', top: -6, right: -6,
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: 'var(--text-secondary)', color: 'white', border: 'none',
+                          cursor: 'pointer', fontSize: 12, lineHeight: 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {photoLimitMsg && <span className="error-msg">{photoLimitMsg}</span>}
             </div>
 
             {error && <span className="error-msg">{error}</span>}
@@ -460,7 +791,7 @@ const AddTaskModal: React.FC = () => {
             <Skeleton height="20px" width="80%" />
             <Skeleton height="48px" />
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-              Confirming payment...
+              {step === 'uploading' ? 'Uploading photos...' : 'Confirming payment...'}
             </div>
           </div>
         )}
@@ -475,6 +806,131 @@ const AddTaskModal: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Photo preview lightbox */}
+      {previewIndex !== null && photoPreviews[previewIndex] && (
+        <div
+          onClick={e => { e.stopPropagation(); setPreviewIndex(null); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {/* Prev */}
+          {photoPreviews.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setPreviewIndex((previewIndex - 1 + photoPreviews.length) % photoPreviews.length); }}
+              style={{
+                position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+                width: 40, height: 40, cursor: 'pointer', color: 'white', fontSize: 20,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              ‹
+            </button>
+          )}
+
+          <img
+            src={photoPreviews[previewIndex]}
+            alt=""
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '85vw', maxHeight: '85vh', objectFit: 'contain',
+              borderRadius: 8,
+            }}
+          />
+
+          {/* Next */}
+          {photoPreviews.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setPreviewIndex((previewIndex + 1) % photoPreviews.length); }}
+              style={{
+                position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+                width: 40, height: 40, cursor: 'pointer', color: 'white', fontSize: 20,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              ›
+            </button>
+          )}
+
+          {/* Close */}
+          <button
+            onClick={() => setPreviewIndex(null)}
+            style={{
+              position: 'absolute', top: 16, right: 16,
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+              width: 36, height: 36, cursor: 'pointer', color: 'white', fontSize: 18,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+
+          {/* Counter */}
+          <div style={{
+            position: 'absolute', bottom: 20,
+            color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600,
+          }}>
+            {previewIndex + 1} / {photoPreviews.length}
+          </div>
+        </div>
+      )}
+
+      {/* Close confirmation dialog */}
+      {showCloseConfirm && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10001,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+            padding: '24px 28px',
+            maxWidth: 340,
+            width: '90%',
+            textAlign: 'center',
+          }}>
+            <h3 style={{
+              fontSize: 16, fontWeight: 700,
+              color: 'var(--text-primary)',
+              marginBottom: 8,
+            }}>
+              Discard changes?
+            </h3>
+            <p style={{
+              fontSize: 13, color: 'var(--text-secondary)',
+              marginBottom: 20, lineHeight: 1.5,
+            }}>
+              You have unsaved changes. Are you sure you want to close?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCloseConfirm(false)}
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => setAddTaskModalOpen(false)}
+                style={{ flex: 1, background: '#ef4444' }}
+              >
+                Yes, discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

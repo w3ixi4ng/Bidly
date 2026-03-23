@@ -87,6 +87,21 @@ const TaskDetail: React.FC = () => {
   const [winnerName, setWinnerName] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
+
+  // Keyboard navigation for photo carousel
+  useEffect(() => {
+    if (carouselIndex === null) return;
+    const handler = (e: KeyboardEvent) => {
+      const photos = tasks.find(t => t.task_id === taskId)?.photos;
+      if (!photos) return;
+      if (e.key === 'Escape') setCarouselIndex(null);
+      if (e.key === 'ArrowLeft') setCarouselIndex((carouselIndex - 1 + photos.length) % photos.length);
+      if (e.key === 'ArrowRight') setCarouselIndex((carouselIndex + 1) % photos.length);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [carouselIndex, taskId, tasks]);
 
   const task = tasks.find((t) => t.task_id === taskId);
   const currentBid = task ? currentBids[task.task_id] : undefined;
@@ -218,9 +233,11 @@ const TaskDetail: React.FC = () => {
       timestamp: new Date().toISOString(),
     };
     setBidHistory(prev => {
-      // Avoid duplicate if same bidder+amount already at top
-      const top = prev[0];
-      if (top && top.bidder_id === newEntry.bidder_id && top.bid_amount === newEntry.bid_amount) return prev;
+      // Avoid duplicate if same bidder+amount already exists anywhere in history
+      const isDuplicate = prev.some(
+        b => b.bidder_id === newEntry.bidder_id && b.bid_amount === newEntry.bid_amount
+      );
+      if (isDuplicate) return prev;
       return [newEntry, ...prev];
     });
     // Resolve bidder name if not yet known
@@ -593,8 +610,8 @@ const TaskDetail: React.FC = () => {
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
         <Navbar />
         <div className="page-container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 32, alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: 32, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
               <Skeleton height="40px" width="70%" />
               <Skeleton height="16px" />
               <Skeleton height="16px" width="80%" />
@@ -635,13 +652,13 @@ const TaskDetail: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr minmax(0, 380px)',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',
             gap: 32,
             alignItems: 'start',
           }}
         >
           {/* Left column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
             {/* Title + status */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
@@ -651,6 +668,8 @@ const TaskDetail: React.FC = () => {
                     fontWeight: 800,
                     color: 'var(--text-primary)',
                     lineHeight: 1.2,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {task.title}
@@ -708,6 +727,8 @@ const TaskDetail: React.FC = () => {
                   lineHeight: 1.7,
                   fontSize: 15,
                   whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                 }}
               >
                 {task.description}
@@ -753,6 +774,114 @@ const TaskDetail: React.FC = () => {
                       <span>{req}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Photos */}
+            {task.photos && task.photos.length > 0 && (
+              <div
+                style={{
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius)',
+                  padding: '20px',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Photos
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+                  {task.photos.map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Task photo ${i + 1}`}
+                      onClick={() => setCarouselIndex(i)}
+                      style={{
+                        width: '100%', height: 140, objectFit: 'cover',
+                        borderRadius: 8, border: '1px solid var(--border)',
+                        cursor: 'pointer', transition: 'opacity 0.2s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Photo Carousel Lightbox */}
+            {task.photos && carouselIndex !== null && (
+              <div
+                onClick={() => setCarouselIndex(null)}
+                style={{
+                  position: 'fixed', inset: 0, zIndex: 9999,
+                  background: 'rgba(0,0,0,0.85)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => setCarouselIndex(null)}
+                  style={{
+                    position: 'absolute', top: 20, right: 20,
+                    background: 'none', border: 'none', color: 'white',
+                    fontSize: 32, cursor: 'pointer', lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+
+                {/* Prev */}
+                {task.photos.length > 1 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setCarouselIndex((carouselIndex - 1 + task.photos!.length) % task.photos!.length); }}
+                    style={{
+                      position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)',
+                      background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                      width: 44, height: 44, borderRadius: '50%',
+                      fontSize: 22, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    ‹
+                  </button>
+                )}
+
+                {/* Image */}
+                <img
+                  src={task.photos[carouselIndex]}
+                  alt={`Photo ${carouselIndex + 1}`}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    maxWidth: '85vw', maxHeight: '85vh',
+                    objectFit: 'contain', borderRadius: 8,
+                  }}
+                />
+
+                {/* Next */}
+                {task.photos.length > 1 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setCarouselIndex((carouselIndex + 1) % task.photos!.length); }}
+                    style={{
+                      position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)',
+                      background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                      width: 44, height: 44, borderRadius: '50%',
+                      fontSize: 22, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    ›
+                  </button>
+                )}
+
+                {/* Counter */}
+                <div style={{
+                  position: 'absolute', bottom: 24,
+                  color: 'rgba(255,255,255,0.7)', fontSize: 14,
+                }}>
+                  {carouselIndex + 1} / {task.photos.length}
                 </div>
               </div>
             )}
@@ -812,77 +941,6 @@ const TaskDetail: React.FC = () => {
               </button>
             )}
 
-            {/* Bid History */}
-            <div
-              style={{
-                background: 'var(--bg-secondary)',
-                borderRadius: 'var(--radius)',
-                padding: '20px',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Bid History ({bidHistory.length})
-              </div>
-              {bidHistoryLoading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[1, 2, 3].map(i => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                      <Skeleton variant="text" width="120px" height="14px" />
-                      <Skeleton variant="text" width="80px" height="14px" />
-                    </div>
-                  ))}
-                </div>
-              ) : bidHistory.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '12px 0' }}>
-                  No bids have been placed yet.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {bidHistory.map((bid, i) => (
-                    <div
-                      key={bid.bid_id ?? i}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 0',
-                        borderBottom: i < bidHistory.length - 1 ? '1px solid var(--border)' : 'none',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {i === 0 && (
-                          <span style={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            background: '#6366f1', boxShadow: '0 0 6px #6366f1',
-                            display: 'inline-block', flexShrink: 0,
-                          }} />
-                        )}
-                        <span style={{
-                          fontSize: 13, fontWeight: i === 0 ? 700 : 500,
-                          color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        }}>
-                          {bidderNames[bid.bidder_id] ?? bid.bidder_id.slice(0, 8) + '...'}
-                          {bid.bidder_id === user?.user_id && (
-                            <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4, fontWeight: 700 }}>(you)</span>
-                          )}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{
-                          fontSize: 14, fontWeight: 700,
-                          color: i === 0 ? '#6366f1' : 'var(--text-primary)',
-                          fontFamily: "'Space Grotesk', sans-serif",
-                        }}>
-                          ${bid.bid_amount.toFixed(2)}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
-                          {new Date(bid.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Right column — Bid Panel */}
@@ -1259,6 +1317,79 @@ const TaskDetail: React.FC = () => {
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
                     Lower bid wins. Bids are binding.
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* Bid History */}
+            <div
+              style={{
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius)',
+                padding: '20px',
+                border: '1px solid var(--border)',
+                marginTop: 16,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Bid History ({bidHistory.length})
+              </div>
+              {bidHistoryLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                      <Skeleton variant="text" width="120px" height="14px" />
+                      <Skeleton variant="text" width="80px" height="14px" />
+                    </div>
+                  ))}
+                </div>
+              ) : bidHistory.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', padding: '12px 0' }}>
+                  No bids have been placed yet.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {bidHistory.map((bid, i) => (
+                    <div
+                      key={bid.bid_id ?? i}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 0',
+                        borderBottom: i < bidHistory.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {i === 0 && (
+                          <span style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: '#6366f1', boxShadow: '0 0 6px #6366f1',
+                            display: 'inline-block', flexShrink: 0,
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: 13, fontWeight: i === 0 ? 700 : 500,
+                          color: i === 0 ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        }}>
+                          {bidderNames[bid.bidder_id] ?? bid.bidder_id.slice(0, 8) + '...'}
+                          {bid.bidder_id === user?.user_id && (
+                            <span style={{ fontSize: 10, color: '#6366f1', marginLeft: 4, fontWeight: 700 }}>(you)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 700,
+                          color: i === 0 ? '#6366f1' : 'var(--text-primary)',
+                          fontFamily: "'Space Grotesk', sans-serif",
+                        }}>
+                          ${bid.bid_amount.toFixed(2)}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 90, textAlign: 'right' }}>
+                          {new Date(bid.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

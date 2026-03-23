@@ -235,6 +235,33 @@ services:
       notifications:
         condition: service_started
 
+  photos:
+    image: bidly/photos:latest
+    build: ./backend/services/photos
+    container_name: photos
+    ports:
+      - "8050:8050"
+    networks:
+      - bidly-net
+    env_file:
+      - .env.supabase
+
+  upload-photo:
+    image: bidly/upload-photo:latest
+    build: ./backend/orchestrators/upload-photo
+    container_name: upload-photo
+    ports:
+      - "8051:8051"
+    networks:
+      - bidly-net
+    depends_on:
+      photos:
+        condition: service_started
+      users:
+        condition: service_started
+      tasks:
+        condition: service_started
+
   kong:
     image: kong:3.6
     container_name: kong
@@ -262,3 +289,4 @@ services:
       - bids
       - users
       - connect-chat
+      - upload-photo

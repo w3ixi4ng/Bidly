@@ -10,21 +10,24 @@ class SupabaseService:
         self.key = os.getenv("SUPABASE_KEY")
         self.client: Client = create_client(self.url, self.key)
 
+    def _execute(self, query):
+        response = query.execute()
+        if hasattr(response, 'data'):
+            return response.data
+        raise Exception(f"Supabase query failed: {response}")
+
     def create_chat(self, chat_data: dict):
         user1 = chat_data["user_1_id"]
         user2 = chat_data["user_2_id"]
-        existing_chat = self.client.schema("chats").from_("chats").select("*").or_(
+        existing_chat = self._execute(self.client.schema("chats").from_("chats").select("*").or_(
             f"and(user_1_id.eq.{user1},user_2_id.eq.{user2}),and(user_1_id.eq.{user2},user_2_id.eq.{user1})"
-        ).execute()
-        if existing_chat.data:
-            return existing_chat.data
-        response = self.client.schema("chats").from_("chats").insert(chat_data).execute()
-        return response.data
+        ))
+        if existing_chat:
+            return existing_chat
+        return self._execute(self.client.schema("chats").from_("chats").insert(chat_data))
 
     def get_chat_by_id(self, chat_id: str):
-        response = self.client.schema("chats").from_("chats").select("*").eq("chat_id", chat_id).execute()
-        return response.data
+        return self._execute(self.client.schema("chats").from_("chats").select("*").eq("chat_id", chat_id))
 
     def get_chats_by_user(self, user_id: str):
-        response = self.client.schema("chats").from_("chats").select("*").or_(f"user_1_id.eq.{user_id},user_2_id.eq.{user_id}").execute()
-        return response.data
+        return self._execute(self.client.schema("chats").from_("chats").select("*").or_(f"user_1_id.eq.{user_id},user_2_id.eq.{user_id}"))

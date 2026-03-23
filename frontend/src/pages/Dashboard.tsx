@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { useChatStore } from '../store/chatStore';
 import { getTasksByClient, getTasksByFreelancer, getTask } from '../api/tasks';
-import { getBidsByUser, getCurrentBidWithFallback } from '../api/bids';
+import { getBidsByUser, getCurrentBidWithFallback, getBidsByTask } from '../api/bids';
 import { getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
@@ -187,6 +187,7 @@ const Dashboard: React.FC = () => {
   const [winnerNames, setWinnerNames] = useState<Record<string, string>>({});
   // Current bids for client tasks (to show winner info)
   const [clientTaskBids, setClientTaskBids] = useState<Record<string, CurrentBidType>>({});
+  const [bidCounts, setBidCounts] = useState<Record<string, number>>({});
 
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
@@ -248,6 +249,23 @@ const Dashboard: React.FC = () => {
             }
           });
           setClientTaskBids(bidsMap);
+
+          // Fetch bid counts for tasks that have bids
+          const tasksWithBids = Object.keys(bidsMap);
+          if (tasksWithBids.length > 0) {
+            Promise.allSettled(
+              tasksWithBids.map(taskId =>
+                getBidsByTask(taskId).then(bids => ({ taskId, count: bids.length }))
+              )
+            ).then(results => {
+              if (cancelled) return;
+              const counts: Record<string, number> = {};
+              results.forEach(r => {
+                if (r.status === 'fulfilled') counts[r.value.taskId] = r.value.count;
+              });
+              setBidCounts(counts);
+            });
+          }
 
           // Fetch winner names for completed tasks
           const endedTasks = tasks.filter(t => !isTaskActive(t));
@@ -720,8 +738,8 @@ const Dashboard: React.FC = () => {
           <div style={cardStyle(hovered)}>
             {hovered && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, #6366f1, #a855f7)', borderRadius: '20px 20px 0 0' }} />}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {task.title}
                 </h3>
                 {task.category && (
@@ -734,19 +752,21 @@ const Dashboard: React.FC = () => {
               {task.description}
             </p>
 
-            {/* Status info for ended/post-auction tasks */}
-            {!isTaskActive(task) && status !== 'pending' && (
+            {/* Status info */}
+            {status !== 'pending' && (
               <div style={{
                 padding: '8px 12px', borderRadius: 10, marginBottom: 12,
                 background: status === 'pending-review' ? 'rgba(249,115,22,0.08)'
                   : status === 'disputed' ? 'rgba(239,68,68,0.08)'
                   : status === 'accepted' ? 'rgba(34,197,94,0.08)'
+                  : (isTaskActive(task) && bid?.bidder_id) ? 'rgba(99,102,241,0.08)'
                   : status === 'no-bids' ? 'rgba(156,163,175,0.08)'
                   : (winnerName ? 'rgba(34,197,94,0.08)' : 'rgba(156,163,175,0.08)'),
                 border: `1px solid ${
                   status === 'pending-review' ? 'rgba(249,115,22,0.2)'
                   : status === 'disputed' ? 'rgba(239,68,68,0.2)'
                   : status === 'accepted' ? 'rgba(34,197,94,0.2)'
+                  : (isTaskActive(task) && bid?.bidder_id) ? 'rgba(99,102,241,0.2)'
                   : status === 'no-bids' ? 'rgba(156,163,175,0.2)'
                   : (winnerName ? 'rgba(34,197,94,0.2)' : 'rgba(156,163,175,0.2)')
                 }`,
@@ -775,13 +795,22 @@ const Dashboard: React.FC = () => {
                       Accepted — payment released to {winnerName ?? 'freelancer'}
                     </span>
                   </>
+                ) : isTaskActive(task) && bid?.bidder_id ? (
+                  <>
+                    <svg width="14" height="14" fill="none" stroke="#6366f1" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                    <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
+                      {bidCounts[task.task_id] ?? 1} bid{(bidCounts[task.task_id] ?? 1) !== 1 ? 's' : ''} placed
+                    </span>
+                  </>
                 ) : status === 'no-bids' || (!winnerName && !bid?.bidder_id) ? (
                   <>
                     <svg width="14" height="14" fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="10" /><path d="M8 12h8" />
                     </svg>
                     <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600 }}>
-                      No one bid on this task
+                      {isTaskActive(task) ? 'No bids yet' : 'No one bid on this task'}
                     </span>
                   </>
                 ) : (
@@ -868,8 +897,8 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            <div style={{ marginBottom: 10, paddingRight: 80 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif" }}>
+            <div style={{ marginBottom: 10, paddingRight: 80, overflow: 'hidden' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {task.title}
               </h3>
               {task.category && <div style={{ marginTop: 6 }}>{renderCategoryBadge(task.category)}</div>}
@@ -929,8 +958,8 @@ const Dashboard: React.FC = () => {
               <span style={{ fontSize: 10, fontWeight: 700, color: wonBadgeConfig.color, letterSpacing: '0.5px' }}>{wonBadgeConfig.label}</span>
             </div>
 
-            <div style={{ marginBottom: 10, paddingRight: 70 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif" }}>
+            <div style={{ marginBottom: 10, paddingRight: 70, overflow: 'hidden' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35, fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {task.title}
               </h3>
               {task.category && <div style={{ marginTop: 6 }}>{renderCategoryBadge(task.category)}</div>}

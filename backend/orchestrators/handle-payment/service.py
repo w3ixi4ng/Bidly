@@ -1,8 +1,11 @@
+import os
 import requests
+
+USERS_URL = os.getenv("USERS_URL", "http://users:8004")
 
 def get_stripe_account_id(user_id):
     # Make a request to the user service to get the Stripe account ID
-    response = requests.get(f"http://localhost:8000/users/{user_id}")
+    response = requests.get(f"{USERS_URL}/users/{user_id}")
     if response.status_code == 200:
         print(response.json())
         return response.json()

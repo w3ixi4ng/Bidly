@@ -111,7 +111,7 @@ const Tasks: React.FC = () => {
           .catch(() => {});
       }
     });
-  }, [tasks]);
+  }, [tasks, currentBids, setCurrentBid]);
 
   // Poll pending tasks whose start time recently passed to detect transition to in-progress
   useEffect(() => {

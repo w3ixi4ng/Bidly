@@ -1,7 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Task, CurrentBid } from '../types';
+import type { Task, CurrentBid, TaskCategory } from '../types';
 import Skeleton from './Skeleton';
+
+const SUPABASE_STORAGE = 'https://ccxdyvbfjiwkgvlzfguk.supabase.co/storage/v1/object/public/task-photos/default_thumbnails';
+
+const DEFAULT_THUMBNAILS: Record<TaskCategory, string> = {
+  Design: `${SUPABASE_STORAGE}/default_thumbnail_design`,
+  Development: `${SUPABASE_STORAGE}/default_thumbnail_development`,
+  Writing: `${SUPABASE_STORAGE}/default_thumbnail_writing`,
+  Marketing: `${SUPABASE_STORAGE}/default_thumbnail_marketing2`,
+  Other: `${SUPABASE_STORAGE}/default_thumbnail_other`,
+};
 
 interface TaskCardProps {
   task?: Task;
@@ -80,6 +90,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
     ? `$${(currentBid!.bid_amount as number).toFixed(2)}`
     : `$${task.starting_bid.toFixed(2)}`;
 
+  const thumbnailUrl = task.thumbnail || DEFAULT_THUMBNAILS[task.category] || DEFAULT_THUMBNAILS.Other;
+
   const countdown = formatCountdown(task.auction_end_time);
 
   const urgencyColor = {
@@ -117,8 +129,26 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
         transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, opacity 0.3s ease',
       }}
     >
-      {/* Accent glow on hover */}
-      {hovered && (
+      {/* Thumbnail */}
+      <div style={{
+        margin: '-22px -22px 14px -22px',
+        aspectRatio: '709 / 251',
+        overflow: 'hidden',
+        borderRadius: '20px 20px 0 0',
+      }}>
+        <img
+          src={thumbnailUrl}
+          alt=""
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            transition: 'transform 0.3s ease',
+            transform: hovered ? 'scale(1.03)' : 'scale(1)',
+          }}
+        />
+      </div>
+
+      {/* Accent glow on hover (only when no custom thumbnail) */}
+      {hovered && !task.thumbnail && (
         <div style={{
           position: 'absolute',
           top: 0, left: 0, right: 0,
@@ -180,6 +210,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
         marginBottom: 10,
         paddingRight: hasBid ? 80 : 0,
         fontFamily: "'Space Grotesk', sans-serif",
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
       }}>
         {task.title}
       </h3>
@@ -195,6 +228,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
         overflow: 'hidden',
         marginBottom: 16,
         flex: 1,
+        wordBreak: 'break-word',
+        overflowWrap: 'anywhere',
       }}>
         {task.description}
       </p>

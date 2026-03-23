@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI, HTTPException
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Request
 import stripe
 from dotenv import load_dotenv, find_dotenv
 from schema import ReleasePayment, RefundPayment, CapturePayment, CreateConnectedAccount
@@ -19,7 +20,11 @@ def health_check():
 
 
 @app.post("/payment/create-connected-account")
-def create_connected_account(data: CreateConnectedAccount):
+def create_connected_account(data: CreateConnectedAccount, request: Request):
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "127.0.0.1")
+    # Use the first IP if x-forwarded-for contains multiple
+    if "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
     account = stripe.Account.create(
         country="SG",
         email=data.email,
@@ -30,7 +35,7 @@ def create_connected_account(data: CreateConnectedAccount):
             "stripe_dashboard": {"type": "none"},
         },
         capabilities={"transfers": {"requested": True}},
-        tos_acceptance={"date": 1609798905, "ip": "8.8.8.8"},
+        tos_acceptance={"date": int(datetime.now().timestamp()), "ip": client_ip},
     )
 
     link = stripe.AccountLink.create(
@@ -81,8 +86,8 @@ def capture_payment_intent(payment_data: CapturePayment):
         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
         metadata={
             "client_id": payment_data.client_id,
-            "title": payment_data.title,
-            "description": payment_data.description,
+            "title": payment_data.title[:500],
+            "description": payment_data.description[:500],
             "category": payment_data.category,
             "auction_start_time": payment_data.auction_start_time.isoformat(),
             "auction_end_time": payment_data.auction_end_time.isoformat(),

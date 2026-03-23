@@ -11,8 +11,13 @@ class SupabaseAuthService:
         self.client: Client = create_client(self.url, self.key)
         service_key = os.getenv("SUPABASE_SERVICE_KEY", self.key)
         self.admin_client: Client = create_client(self.url, service_key)
-    
-    
+
+    def _execute(self, query):
+        response = query.execute()
+        if hasattr(response, 'data'):
+            return response.data
+        raise Exception(f"Supabase query failed: {response}")
+
     def signup_user(self, email: str, password: str, name: Optional[str] = None):
 
         response = self.client.auth.sign_up({
@@ -20,46 +25,44 @@ class SupabaseAuthService:
             "password": password,
             "options": {
                 "data": {
-                    "name": name 
+                    "name": name
                 }
             }
         })
-        
+
         return response.user, response.session
-    
+
     def login_user(self, email: str, password: str):
-        
+
         response = self.client.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
-        
+
         return response.user, response.session
-    
+
     def get_user_by_token(self, token: str):
         try:
             user = self.client.auth.get_user(token)
             return user
         except Exception as e:
             raise Exception(f"Invalid token: {str(e)}")
-    
-    
+
+
     def get_user_profile(self, user_id: str):
-        response = self.admin_client.schema("users").from_("users").select("*").eq("user_id", user_id).execute()
-        if not response.data:
+        data = self._execute(self.admin_client.schema("users").from_("users").select("*").eq("user_id", user_id))
+        if not data:
             return None
-        return response.data[0]
-    
+        return data[0]
+
 
     def update_user_profile(self, user_id: str, profile_data: dict):
-        response = self.admin_client.schema("users").from_("users").update(profile_data).eq("user_id", user_id).execute()
-        return response.data
-    
-    
+        return self._execute(self.admin_client.schema("users").from_("users").update(profile_data).eq("user_id", user_id))
+
+
     def refresh_session(self, refresh_token: str):
         response = self.client.auth.refresh_session(refresh_token)
         return response.session
 
     def get_all_users(self):
-        response = self.admin_client.schema("users").from_("users").select("*").execute()
-        return response.data
+        return self._execute(self.admin_client.schema("users").from_("users").select("*"))

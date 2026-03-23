@@ -123,6 +123,7 @@ export function connectSocket(userId: string): void {
 
 export function disconnectSocket(): void {
   if (socket) {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
   }

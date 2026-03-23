@@ -69,17 +69,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
     }),
 
-  markRead: (chat_id) =>
+  markRead: (chat_id) => {
+    if (chat_id == null) return;
     set((state) => ({
       unreadCounts: {
         ...state.unreadCounts,
         [chat_id]: 0,
       },
-    })),
+    }));
+  },
 
   setActiveChat: (chat_id) => {
     set({ activeChatId: chat_id });
-    if (chat_id) {
+    if (chat_id != null) {
       get().markRead(chat_id);
     }
   },
