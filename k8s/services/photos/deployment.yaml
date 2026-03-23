@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photos
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photos
+  template:
+    metadata:
+      labels:
+        app: photos
+    spec:
+      containers:
+        - name: photos
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/photos:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8050
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          envFrom:
+            - secretRef:
+                name: supabase-secret

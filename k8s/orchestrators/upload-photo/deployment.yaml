@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upload-photo
+  namespace: bidly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: upload-photo
+  template:
+    metadata:
+      labels:
+        app: upload-photo
+    spec:
+      containers:
+        - name: upload-photo
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/upload-photo:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8051
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
