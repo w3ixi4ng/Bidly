@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: kong
   namespace: bidly
+  labels:
+    app: kong
   annotations:
     cloud.google.com/backend-config: '{"default": "kong-backendconfig"}'
 spec:
