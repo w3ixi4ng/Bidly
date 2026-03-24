@@ -17,6 +17,7 @@ if not end_time then return {err="Auction not found"} end
 if timestamp > end_time then return {err="Auction has ended"} end
 
 if current_bidder and current_bidder ~= "" then
+    if current_bidder == bidder_id then return {err="You are already the winning bidder"} end
     if bid_amount >= current_bid then return {err="Bid must be lower than current bid"} end
 else
     if bid_amount > current_bid then return {err="Bid must be at or below the starting bid"} end
