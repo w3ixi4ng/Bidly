@@ -1299,8 +1299,8 @@ const TaskDetail: React.FC = () => {
                           ? `Less than $${currentBid.bid_amount.toFixed(2)}`
                           : `At or below $${task.starting_bid.toFixed(2)}`
                       }
-                      disabled={bidLoading}
-                      onKeyDown={(e) => e.key === 'Enter' && handlePlaceBid()}
+                      disabled={bidLoading || isWinning}
+                      onKeyDown={(e) => e.key === 'Enter' && !isWinning && !bidLoading && bidInput && handlePlaceBid()}
                     />
                     {bidError && <span className="error-msg">{bidError}</span>}
                   </div>
