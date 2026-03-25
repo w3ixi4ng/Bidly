@@ -49,6 +49,7 @@ def start_auction(ch, method, properties, body):
         if response.status_code != 200:
             response.raise_for_status()
 
+        # Notify frontend that the task has started
         channel.basic_publish(
             exchange="bidly",
             routing_key="task.started.websocket",
