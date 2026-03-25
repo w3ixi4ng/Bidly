@@ -95,7 +95,7 @@ async def create_task(body: CreateTaskRequest):
                 aio_pika.Message(
                     body=auction_payload,
                     delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                    expiration=delay_ms,
+                    expiration=str(delay_ms),
                 ),
                 routing_key="auction_pending",
             )
