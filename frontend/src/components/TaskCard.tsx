@@ -62,12 +62,14 @@ function formatStartCountdown(startTime: string): string {
   if (diff <= 0) return 'Starting...';
   const totalHours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     return `Starts in ${days}d ${totalHours % 24}h`;
   }
   if (totalHours > 0) return `Starts in ${totalHours}h ${mins}m`;
-  return `Starts in ${mins}m`;
+  if (mins > 0) return `Starts in ${mins}m ${secs}s`;
+  return `Starts in ${secs}s`;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false }) => {
@@ -77,8 +79,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
 
   useEffect(() => {
     if (!task) return;
-    const remaining = new Date(task.auction_end_time).getTime() - Date.now();
-    if (remaining <= 0) return;
+    const endRemaining = new Date(task.auction_end_time).getTime() - Date.now();
+    const startRemaining = new Date(task.auction_start_time).getTime() - Date.now();
+    if (endRemaining <= 0 && startRemaining <= 0) return;
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [task]);

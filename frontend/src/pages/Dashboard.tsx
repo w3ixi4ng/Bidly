@@ -64,14 +64,15 @@ function formatStartsIn(startTime: string): string {
   if (diff <= 0) return 'Starting soon';
   const totalHours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     const remainingHours = totalHours % 24;
     return `Starts in ${days}d ${remainingHours}h`;
   }
   if (totalHours > 0) return `Starts in ${totalHours}h ${mins}m`;
-  if (mins > 0) return `Starts in ${mins}m`;
-  return 'Starting soon';
+  if (mins > 0) return `Starts in ${mins}m ${secs}s`;
+  return `Starts in ${secs}s`;
 }
 
 /** Returns the effective display status, accounting for time expiry */
