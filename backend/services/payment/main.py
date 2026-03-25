@@ -1,9 +1,10 @@
 import os
-from datetime import datetime
+import math
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 import stripe
 from dotenv import load_dotenv, find_dotenv
-from schema import ReleasePayment, RefundPayment, CapturePayment, CreateConnectedAccount
+from schema import ReleasePayment, RefundPayment, CapturePayment, CreateConnectedAccount, CaptureFeaturedFee
 import uvicorn
 
 load_dotenv(find_dotenv())
@@ -78,10 +79,27 @@ def create_onboarding_link(account_id: str):
         raise HTTPException(status_code=404, detail="Connected account not found")
 
 
+FEATURED_FEE_CENTS = int(os.getenv("FEATURED_FEE_CENTS", "500"))  # $5 default
+STRIPE_FEE_PERCENT = float(os.getenv("STRIPE_FEE_PERCENT", "0.034"))  # 3.4%
+STRIPE_FEE_FIXED_CENTS = int(os.getenv("STRIPE_FEE_FIXED_CENTS", "50"))  # $0.50 SGD
+
 @app.post("/payment/capture-payment")
 def capture_payment_intent(payment_data: CapturePayment):
+    if payment_data.auction_end_time <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Auction has already ended")
+
+    base_amount = int(payment_data.starting_bid * 100)  # Convert to cents
+    featured_fee = FEATURED_FEE_CENTS if payment_data.is_featured else 0
+    subtotal = base_amount + featured_fee
+
+    # Pass Stripe processing fee to the client
+    # Formula: total = (subtotal + fixed_fee) / (1 - percent_fee)
+    # This ensures after Stripe takes their cut, we receive exactly subtotal
+    total_amount = math.ceil((subtotal + STRIPE_FEE_FIXED_CENTS) / (1 - STRIPE_FEE_PERCENT))
+    stripe_fee = total_amount - subtotal
+
     payment_intent = stripe.PaymentIntent.create(
-        amount=int(payment_data.starting_bid * 100),  # Convert to cents
+        amount=total_amount,
         currency="sgd",
         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
         metadata={
@@ -92,7 +110,33 @@ def capture_payment_intent(payment_data: CapturePayment):
             "auction_start_time": payment_data.auction_start_time.isoformat(),
             "auction_end_time": payment_data.auction_end_time.isoformat(),
             "starting_bid": payment_data.starting_bid,
-            "auction_status": "pending"
+            "auction_status": "pending",
+            "is_featured": str(payment_data.is_featured),
+            "featured_fee": featured_fee,
+            "stripe_fee": stripe_fee,
+        }
+    )
+
+    return payment_intent
+
+
+@app.post("/payment/capture-featured-fee")
+def capture_featured_fee(data: CaptureFeaturedFee):
+    """Create a PaymentIntent for the $5 featured listing upgrade fee (+ Stripe processing fee)."""
+    featured_fee = FEATURED_FEE_CENTS
+    total_amount = int((featured_fee + STRIPE_FEE_FIXED_CENTS) / (1 - STRIPE_FEE_PERCENT))
+    stripe_fee = total_amount - featured_fee
+
+    payment_intent = stripe.PaymentIntent.create(
+        amount=total_amount,
+        currency="sgd",
+        automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+        metadata={
+            "type": "featured_upgrade",
+            "task_id": data.task_id,
+            "client_id": data.client_id,
+            "featured_fee": featured_fee,
+            "stripe_fee": stripe_fee,
         }
     )
 
@@ -108,15 +152,24 @@ def release_payment(data: ReleasePayment):
 
     if payment_intent["status"] != "succeeded":
         raise HTTPException(status_code=400, detail="Payment not successful")
-    
-    currency = payment_intent["currency"]
-    total_paid = payment_intent["amount_received"]
-    winning_amount = int(data.amount * 100)  # Convert to cents
-    refund_amount = total_paid - winning_amount
 
-    # Transfer winning bid to winner's connected Stripe account
+    currency = payment_intent["currency"]
+    metadata = payment_intent.get("metadata", {})
+    starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
+    winning_bid_cents = int(data.amount * 100)  # Convert to cents
+
+    # Platform commission: deduct from freelancer payout, retained by Bidly
+    commission_rate = float(os.getenv("COMMISSION_RATE", "0.10"))
+    commission_amount = int(winning_bid_cents * commission_rate)
+    freelancer_payout = winning_bid_cents - commission_amount
+
+    # Only refund the difference between starting bid and winning bid
+    # Stripe fee and featured fee are non-refundable
+    refund_amount = starting_bid_cents - winning_bid_cents
+
+    # Transfer winning bid minus commission to winner's connected Stripe account
     transfer = stripe.Transfer.create(
-        amount=winning_amount,
+        amount=freelancer_payout,
         currency=currency,
         destination=data.stripe_connected_account_id,
         transfer_group=data.payment_intent_id,
@@ -131,7 +184,13 @@ def release_payment(data: ReleasePayment):
         )
         refund_id = refund["id"]
 
-    return {"transfer_id": transfer["id"], "refund_id": refund_id}
+    return {
+        "transfer_id": transfer["id"],
+        "refund_id": refund_id,
+        "commission_amount": commission_amount / 100,
+        "freelancer_payout": freelancer_payout / 100,
+        "commission_rate": commission_rate,
+    }
 
 
 @app.get("/payment/verify/{payment_intent_id}")
@@ -151,12 +210,86 @@ def verify_payment(payment_intent_id: str):
 
 @app.post("/payment/refund-payment")
 def refund_payment(data: RefundPayment):
-    # Full refund back to client
+    # Refund only the starting bid amount back to client
+    # Stripe processing fee and featured fee are non-refundable
+    payment_intent = stripe.PaymentIntent.retrieve(data.payment_intent_id)
+    metadata = payment_intent.get("metadata", {})
+    starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
+
     refund = stripe.Refund.create(
         payment_intent=data.payment_intent_id,
+        amount=starting_bid_cents,
     )
 
     return {"refund_id": refund["id"]}
+
+
+@app.get("/payment/admin/recent-payments")
+def list_recent_payments(limit: int = 10):
+    """Admin: list recent PaymentIntents with full breakdown."""
+    intents = stripe.PaymentIntent.list(limit=limit)
+    results = []
+    for pi in intents["data"]:
+        meta = pi.get("metadata", {})
+        results.append({
+            "id": pi["id"],
+            "amount": pi["amount"] / 100,
+            "currency": pi["currency"],
+            "status": pi["status"],
+            "created": pi["created"],
+            "metadata": {
+                "title": meta.get("title"),
+                "client_id": meta.get("client_id"),
+                "starting_bid": meta.get("starting_bid"),
+                "is_featured": meta.get("is_featured"),
+                "featured_fee": meta.get("featured_fee"),
+                "stripe_fee": meta.get("stripe_fee"),
+            },
+        })
+    return {"payments": results}
+
+
+@app.get("/payment/admin/recent-transfers")
+def list_recent_transfers(limit: int = 10):
+    """Admin: list recent transfers to freelancers."""
+    transfers = stripe.Transfer.list(limit=limit)
+    results = []
+    for t in transfers["data"]:
+        results.append({
+            "id": t["id"],
+            "amount": t["amount"] / 100,
+            "currency": t["currency"],
+            "destination": t["destination"],
+            "created": t["created"],
+        })
+    return {"transfers": results}
+
+
+@app.get("/payment/admin/recent-refunds")
+def list_recent_refunds(limit: int = 10):
+    """Admin: list recent refunds."""
+    refunds = stripe.Refund.list(limit=limit)
+    results = []
+    for r in refunds["data"]:
+        results.append({
+            "id": r["id"],
+            "amount": r["amount"] / 100,
+            "currency": r["currency"],
+            "status": r["status"],
+            "payment_intent": r["payment_intent"],
+            "created": r["created"],
+        })
+    return {"refunds": results}
+
+
+@app.get("/payment/admin/balance")
+def get_balance():
+    """Admin: get current Stripe account balance."""
+    balance = stripe.Balance.retrieve()
+    return {
+        "available": [{"amount": b["amount"] / 100, "currency": b["currency"]} for b in balance["available"]],
+        "pending": [{"amount": b["amount"] / 100, "currency": b["currency"]} for b in balance["pending"]],
+    }
 
 
 if __name__ == "__main__":

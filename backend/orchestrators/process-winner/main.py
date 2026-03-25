@@ -1,7 +1,7 @@
 import pika
 import json
 from schema import ProcessWinnerRequest
-from service import update_task_with_winner, get_winner
+from service import update_task_with_winner, get_winner, get_task, refund_payment
 import rabbitmq_publish
 
 
@@ -22,8 +22,14 @@ def process_winner(ch, method, properties, body):
         winner_data = response.json()
 
         if not winner_data.get("bidder_id"):
-            # No bids placed, mark auction as completed without a winner
+            # No bids placed, mark auction as no-bids and refund the client
             response = update_task_with_winner(request.task_id, None, auction_status="no-bids")
+            try:
+                task_data = get_task(request.task_id).json()
+                refund_payment(task_data["payment_id"])
+                print(f"Refund issued for task {request.task_id} (no bids)")
+            except Exception as e:
+                print(f"Failed to refund for task {request.task_id}: {e}")
         else:
             # Update task with winning bidder and mark auction as completed
             response = update_task_with_winner(request.task_id, winner_data["bidder_id"], auction_status="completed")

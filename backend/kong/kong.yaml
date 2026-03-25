@@ -90,6 +90,14 @@ services:
           - /upload-photo
         strip_path: false
 
+  - name: ads-service
+    url: http://ads:8060
+    routes:
+      - name: ads-route
+        paths:
+          - /ads
+        strip_path: false
+
   - name: websocket-service
     url: http://websocket:8007
     routes:

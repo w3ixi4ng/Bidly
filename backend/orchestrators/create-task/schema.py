@@ -15,3 +15,4 @@ class CreateTaskRequest(BaseModel):
     starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
+    is_featured: bool = False

@@ -74,6 +74,7 @@ async def create_task(body: CreateTaskRequest):
             "auction_start_time": body.auction_start_time.isoformat(),
             "auction_end_time": body.auction_end_time.isoformat(),
             "auction_status": "pending",
+            "is_featured": body.is_featured,
         })
 
         if task_res.status_code != 201:

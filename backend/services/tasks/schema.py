@@ -17,6 +17,7 @@ class TaskResponse(BaseModel):
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
     auction_status: str
+    is_featured: bool = False
     photos: Optional[list[str]] = None
     thumbnail: Optional[str] = None
 
@@ -36,6 +37,7 @@ class TaskCreate(BaseModel):
     auction_status: Literal["pending", "in-progress", "completed", "cancelled"] = "pending"
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
+    is_featured: bool = False
 
 
 class TaskUpdate(BaseModel):
@@ -48,5 +50,6 @@ class TaskUpdate(BaseModel):
     auction_status: Optional[Literal["pending", "in-progress", "completed", "cancelled", "no-bids", "pending-review", "accepted", "disputed"]] = None
     auction_start_time: Optional[AwareDatetime] = None
     auction_end_time: Optional[AwareDatetime] = None
+    is_featured: Optional[bool] = None
     photos: Optional[list[str]] = None
     thumbnail: Optional[str] = None

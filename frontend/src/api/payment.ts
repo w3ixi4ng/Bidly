@@ -9,6 +9,7 @@ export interface CapturePaymentPayload {
   starting_bid: number;
   auction_start_time: string;
   auction_end_time: string;
+  is_featured?: boolean;
 }
 
 export async function capturePayment(
@@ -17,6 +18,17 @@ export async function capturePayment(
   const { data } = await apiClient.post<{ client_secret: string }>(
     '/handle-payment/capture',
     payload
+  );
+  return data;
+}
+
+export async function captureFeaturedFee(
+  taskId: string,
+  clientId: string
+): Promise<{ client_secret: string }> {
+  const { data } = await apiClient.post<{ client_secret: string }>(
+    '/handle-payment/capture-featured-fee',
+    { task_id: taskId, client_id: clientId }
   );
   return data;
 }
@@ -52,10 +64,17 @@ export interface ReleasePaymentPayload {
   client_id: string;
 }
 
+export interface ReleasePaymentResponse {
+  status: string;
+  commission_amount?: number;
+  freelancer_payout?: number;
+  commission_rate?: number;
+}
+
 export async function releasePayment(
   payload: ReleasePaymentPayload
-): Promise<{ status: string }> {
-  const { data } = await apiClient.post<{ status: string }>(
+): Promise<ReleasePaymentResponse> {
+  const { data } = await apiClient.post<ReleasePaymentResponse>(
     '/handle-payment/release',
     payload
   );
