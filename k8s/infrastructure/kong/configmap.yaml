@@ -89,6 +89,14 @@ data:
               - /notifications
             strip_path: false
 
+      - name: upload-photo-service
+        url: http://upload-photo:8051
+        routes:
+          - name: upload-photo-route
+            paths:
+              - /upload-photo
+            strip_path: false
+
       - name: websocket-service
         url: http://websocket:8007
         routes:
@@ -98,6 +106,14 @@ data:
             strip_path: false
 
     plugins:
+      - name: prometheus
+        config:
+          per_consumer: false
+          status_code_metrics: true
+          latency_metrics: true
+          bandwidth_metrics: true
+          upstream_health_metrics: true
+
       - name: cors
         config:
           origins:

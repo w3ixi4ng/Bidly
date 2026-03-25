@@ -22,7 +22,7 @@ spec:
           command: ["sh", "-c", "until nc -z redis 6379; do sleep 3; done"]
       containers:
         - name: bids
-          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/bids:a7ebb97a8009992382d07e304eeccbefee00f5bf
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/bids:711e71397bb05985afd8f834c1f92b3dc0a02350
           imagePullPolicy: Always
           ports:
             - containerPort: 8003

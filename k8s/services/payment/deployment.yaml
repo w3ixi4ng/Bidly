@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: payment
-          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/payment:a7ebb97a8009992382d07e304eeccbefee00f5bf
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/payment:ac8150f8374c9db5f117e5b1d9b7df06fbc90b65
           imagePullPolicy: Always
           ports:
             - containerPort: 8011

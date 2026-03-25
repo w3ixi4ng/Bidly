@@ -19,7 +19,7 @@ spec:
           command: ["sh", "-c", "until nc -z rabbitmq 5672; do echo waiting for rabbitmq; sleep 5; done; echo rabbitmq port open, sleeping 20s for readiness; sleep 20"]
       containers:
         - name: create-task
-          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/create-task:a7ebb97a8009992382d07e304eeccbefee00f5bf
+          image: asia-southeast1-docker.pkg.dev/project-0ccd7e90-483b-4e7d-904/bidly/create-task:0c6ed9631c81aba35b602bef269f2156a333f216
           imagePullPolicy: Always
           ports:
             - containerPort: 8009

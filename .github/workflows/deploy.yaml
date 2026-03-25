@@ -23,20 +23,54 @@ jobs:
         id: changes
         with:
           filters: |
-            users: backend/services/users/**
-            tasks: backend/services/tasks/**
-            bids: backend/services/bids/**
-            chats: backend/services/chats/**
-            chat-logs: backend/services/chat-logs/**
-            notifications: backend/services/notifications/**
-            payment: backend/services/payment/**
-            websocket: backend/websocket/**
-            create-task: backend/orchestrators/create-task/**
-            connect-chat: backend/orchestrators/connect-chat/**
-            handle-payment: backend/orchestrators/handle-payment/**
-            process-winner: backend/orchestrators/process-winner/**
-            send-notifications: backend/orchestrators/send-notifications/**
-            start-auction: backend/orchestrators/start-auction/**
+            users:
+              - backend/services/users/**
+              - k8s/services/users/**
+            tasks:
+              - backend/services/tasks/**
+              - k8s/services/tasks/**
+            bids:
+              - backend/services/bids/**
+              - k8s/services/bids/**
+            chats:
+              - backend/services/chats/**
+              - k8s/services/chats/**
+            chat-logs:
+              - backend/services/chat-logs/**
+              - k8s/services/chat-logs/**
+            notifications:
+              - backend/services/notifications/**
+              - k8s/services/notifications/**
+            payment:
+              - backend/services/payment/**
+              - k8s/services/payment/**
+            photos:
+              - backend/services/photos/**
+              - k8s/services/photos/**
+            websocket:
+              - backend/websocket/**
+              - k8s/services/websocket/**
+            create-task:
+              - backend/orchestrators/create-task/**
+              - k8s/orchestrators/create-task/**
+            upload-photo:
+              - backend/orchestrators/upload-photo/**
+              - k8s/orchestrators/upload-photo/**
+            connect-chat:
+              - backend/orchestrators/connect-chat/**
+              - k8s/orchestrators/connect-chat/**
+            handle-payment:
+              - backend/orchestrators/handle-payment/**
+              - k8s/orchestrators/handle-payment/**
+            process-winner:
+              - backend/orchestrators/process-winner/**
+              - k8s/orchestrators/process-winner/**
+            send-notifications:
+              - backend/orchestrators/send-notifications/**
+              - k8s/orchestrators/send-notifications/**
+            start-auction:
+              - backend/orchestrators/start-auction/**
+              - k8s/orchestrators/start-auction/**
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -88,6 +122,9 @@ jobs:
           if [ "${{ steps.changes.outputs.payment }}" == "true" ]; then
             build_and_update "payment" "backend/services/payment" "k8s/services/payment/deployment.yaml"
           fi
+          if [ "${{ steps.changes.outputs.photos }}" == "true" ]; then
+            build_and_update "photos" "backend/services/photos" "k8s/services/photos/deployment.yaml"
+          fi
           if [ "${{ steps.changes.outputs.websocket }}" == "true" ]; then
             build_and_update "websocket" "backend/websocket" "k8s/services/websocket/deployment.yaml"
           fi
@@ -110,6 +147,9 @@ jobs:
           fi
           if [ "${{ steps.changes.outputs.start-auction }}" == "true" ]; then
             build_and_update "start-auction" "backend/orchestrators/start-auction" "k8s/orchestrators/start-auction/deployment.yaml"
+          fi
+          if [ "${{ steps.changes.outputs.upload-photo }}" == "true" ]; then
+            build_and_update "upload-photo" "backend/orchestrators/upload-photo" "k8s/orchestrators/upload-photo/deployment.yaml"
           fi
 
           echo "CHANGED=$CHANGED" >> $GITHUB_ENV

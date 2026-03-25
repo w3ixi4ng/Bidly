@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: photos
+  namespace: bidly
+spec:
+  selector:
+    app: photos
+  ports:
+    - port: 8050
+      targetPort: 8050
