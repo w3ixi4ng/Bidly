@@ -80,6 +80,7 @@ def create_onboarding_link(account_id: str):
 
 
 FEATURED_FEE_CENTS = int(os.getenv("FEATURED_FEE_CENTS", "500"))  # $5 default
+COMMISSION_RATE = float(os.getenv("COMMISSION_RATE", "0.10"))  # 10% platform commission
 STRIPE_FEE_PERCENT = float(os.getenv("STRIPE_FEE_PERCENT", "0.034"))  # 3.4%
 STRIPE_FEE_FIXED_CENTS = int(os.getenv("STRIPE_FEE_FIXED_CENTS", "50"))  # $0.50 SGD
 
@@ -89,8 +90,9 @@ def capture_payment_intent(payment_data: CapturePayment):
         raise HTTPException(status_code=400, detail="Auction has already ended")
 
     base_amount = int(payment_data.starting_bid * 100)  # Convert to cents
+    commission = int(base_amount * COMMISSION_RATE)  # 10% platform commission
     featured_fee = FEATURED_FEE_CENTS if payment_data.is_featured else 0
-    subtotal = base_amount + featured_fee
+    subtotal = base_amount + commission + featured_fee
 
     # Pass Stripe processing fee to the client
     # Formula: total = (subtotal + fixed_fee) / (1 - percent_fee)
@@ -112,6 +114,7 @@ def capture_payment_intent(payment_data: CapturePayment):
             "starting_bid": payment_data.starting_bid,
             "auction_status": "pending",
             "is_featured": str(payment_data.is_featured),
+            "commission": commission,
             "featured_fee": featured_fee,
             "stripe_fee": stripe_fee,
         }
@@ -156,20 +159,18 @@ def release_payment(data: ReleasePayment):
     currency = payment_intent["currency"]
     metadata = payment_intent.get("metadata", {})
     starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
+    commission_charged = int(float(metadata.get("commission", 0)))  # 10% of starting bid
     winning_bid_cents = int(data.amount * 100)  # Convert to cents
+    commission_owed = int(winning_bid_cents * COMMISSION_RATE)  # 10% of winning bid
 
-    # Platform commission: deduct from freelancer payout, retained by Bidly
-    commission_rate = float(os.getenv("COMMISSION_RATE", "0.10"))
-    commission_amount = int(winning_bid_cents * commission_rate)
-    freelancer_payout = winning_bid_cents - commission_amount
-
-    # Only refund the difference between starting bid and winning bid
+    # Refund: (starting bid - winning bid) + (excess commission)
+    # Commission is only charged on the final winning bid, not the full starting bid
     # Stripe fee and featured fee are non-refundable
-    refund_amount = starting_bid_cents - winning_bid_cents
+    refund_amount = (starting_bid_cents - winning_bid_cents) + (commission_charged - commission_owed)
 
-    # Transfer winning bid minus commission to winner's connected Stripe account
+    # Transfer full winning bid to winner's connected Stripe account
     transfer = stripe.Transfer.create(
-        amount=freelancer_payout,
+        amount=winning_bid_cents,
         currency=currency,
         destination=data.stripe_connected_account_id,
         transfer_group=data.payment_intent_id,
@@ -187,9 +188,7 @@ def release_payment(data: ReleasePayment):
     return {
         "transfer_id": transfer["id"],
         "refund_id": refund_id,
-        "commission_amount": commission_amount / 100,
-        "freelancer_payout": freelancer_payout / 100,
-        "commission_rate": commission_rate,
+        "freelancer_payout": winning_bid_cents / 100,
     }
 
 
@@ -210,15 +209,18 @@ def verify_payment(payment_intent_id: str):
 
 @app.post("/payment/refund-payment")
 def refund_payment(data: RefundPayment):
-    # Refund only the starting bid amount back to client
+    # Refund starting bid + commission back to client
     # Stripe processing fee and featured fee are non-refundable
     payment_intent = stripe.PaymentIntent.retrieve(data.payment_intent_id)
     metadata = payment_intent.get("metadata", {})
     starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
+    commission_cents = int(float(metadata.get("commission", 0)))
+
+    refund_amount = starting_bid_cents + commission_cents
 
     refund = stripe.Refund.create(
         payment_intent=data.payment_intent_id,
-        amount=starting_bid_cents,
+        amount=refund_amount,
     )
 
     return {"refund_id": refund["id"]}
