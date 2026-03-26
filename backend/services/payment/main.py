@@ -157,7 +157,7 @@ def release_payment(data: ReleasePayment):
         raise HTTPException(status_code=400, detail="Payment not successful")
 
     currency = payment_intent["currency"]
-    metadata = dict(payment_intent["metadata"])
+    metadata = payment_intent.metadata or {}
     starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
     commission_charged = int(float(metadata.get("commission", 0)))  # 10% of starting bid
     winning_bid_cents = int(data.amount * 100)  # Convert to cents
@@ -201,7 +201,7 @@ def verify_payment(payment_intent_id: str):
             "payment_intent_id": payment_intent["id"],
             "status": payment_intent["status"],
             "amount": payment_intent["amount"],
-            "metadata": dict(payment_intent["metadata"]),
+            "metadata": payment_intent.metadata or {},
         }
     except stripe.error.InvalidRequestError:
         raise HTTPException(status_code=404, detail="PaymentIntent not found")
@@ -212,7 +212,7 @@ def refund_payment(data: RefundPayment):
     # Refund starting bid + commission back to client
     # Stripe processing fee and featured fee are non-refundable
     payment_intent = stripe.PaymentIntent.retrieve(data.payment_intent_id)
-    metadata = dict(payment_intent["metadata"])
+    metadata = payment_intent.metadata or {}
     starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
     commission_cents = int(float(metadata.get("commission", 0)))
 
@@ -232,7 +232,7 @@ def list_recent_payments(limit: int = 10):
     intents = stripe.PaymentIntent.list(limit=limit)
     results = []
     for pi in intents["data"]:
-        meta = dict(pi["metadata"])
+        meta = pi.metadata or {}
         results.append({
             "id": pi["id"],
             "amount": pi["amount"] / 100,
