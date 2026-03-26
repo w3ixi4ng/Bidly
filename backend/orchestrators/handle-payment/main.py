@@ -1,7 +1,7 @@
 import httpx
 import logging
 from fastapi import FastAPI, HTTPException, Request
-from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData
+from schema import ReleasePaymentData, RefundPaymentData, StartPaymentData, FeatureTaskData
 import stripe
 from dotenv import load_dotenv, find_dotenv
 import os
@@ -13,6 +13,7 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 PAYMENT_URL = "http://payment:8011"
 CREATE_TASK_URL = "http://create-task:8009"
+TASKS_URL = "http://tasks:8005"
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,23 @@ async def capture_payment(payment_data: StartPaymentData):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@app.post("/handle-payment/capture-featured-fee")
+async def capture_featured_fee(data: FeatureTaskData):
+    """Create a PaymentIntent for the $5 featured listing upgrade."""
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                f"{PAYMENT_URL}/payment/capture-featured-fee",
+                json=data.model_dump(mode="json")
+            )
+            res.raise_for_status()
+            payment_intent = res.json()
+
+        return {"client_secret": payment_intent["client_secret"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/handle-payment/release")
 async def release_payment(payment_data: ReleasePaymentData):
@@ -72,12 +90,19 @@ async def release_payment(payment_data: ReleasePaymentData):
             })
             release_res.raise_for_status()
 
+        release_data = release_res.json()
+
         try:
             update_payment_log_status(payment_data.payment_id, "released")
         except Exception as e:
             logger.error(f"Release succeeded but failed to update payment log: {e}")
 
-        return {"status": "released"}
+        return {
+            "status": "released",
+            "commission_amount": release_data.get("commission_amount"),
+            "freelancer_payout": release_data.get("freelancer_payout"),
+            "commission_rate": release_data.get("commission_rate"),
+        }
 
     except HTTPException:
         raise
@@ -142,6 +167,22 @@ async def stripe_webhook(request: Request):
         payment_intent = event["data"]["object"]
         metadata = payment_intent.get("metadata", {})
 
+        # Handle featured upgrade payments
+        if metadata.get("type") == "featured_upgrade":
+            task_id = metadata.get("task_id")
+            if task_id:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        res = await client.put(
+                            f"{TASKS_URL}/tasks/{task_id}",
+                            json={"is_featured": True}
+                        )
+                        res.raise_for_status()
+                        logger.info(f"Webhook: task {task_id} upgraded to featured")
+                except Exception as e:
+                    logger.error(f"Webhook: failed to feature task {task_id}: {e}")
+            return {"status": "success", "type": "featured_upgrade"}
+
         # Only process if this PaymentIntent has our task metadata
         if not metadata.get("client_id") or not metadata.get("title"):
             return {"status": "ignored", "reason": "not a task payment"}
@@ -178,6 +219,7 @@ async def stripe_webhook(request: Request):
                     "starting_bid": float(metadata.get("starting_bid", 0)),
                     "auction_start_time": metadata.get("auction_start_time"),
                     "auction_end_time": metadata.get("auction_end_time"),
+                    "is_featured": metadata.get("is_featured", "False") == "True",
                 })
 
                 if res.status_code in (200, 201):

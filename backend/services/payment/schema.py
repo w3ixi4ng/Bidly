@@ -13,6 +13,7 @@ class CapturePayment(BaseModel):
     starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
+    is_featured: bool = False
 
 class CreateConnectedAccount(BaseModel):
     email: str
@@ -24,3 +25,7 @@ class ReleasePayment(BaseModel):
 
 class RefundPayment(BaseModel):
     payment_intent_id: str
+
+class CaptureFeaturedFee(BaseModel):
+    task_id: str
+    client_id: str

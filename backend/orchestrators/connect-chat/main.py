@@ -67,6 +67,7 @@ async def start_consumer():
     bidly_exchange = await channel.declare_exchange("bidly", aio_pika.ExchangeType.TOPIC, durable=True)
 
     queue = await channel.declare_queue("End_Auction_Chat", durable=True)
+    await queue.bind(bidly_exchange, routing_key="end.auction.chat")
     await queue.consume(process_auction_end)
     print("RabbitMQ consumer started on End_Auction_Chat")
 

@@ -9,7 +9,8 @@ import { createChat, getUserChats } from '../api/chats';
 import { getChatMessages } from '../api/chatLogs';
 import { getUser } from '../api/users';
 import { getTasks, getTask, updateTask } from '../api/tasks';
-import { releasePayment, refundPayment, getAccountStatus } from '../api/payment';
+import { releasePayment, refundPayment, getAccountStatus, captureFeaturedFee } from '../api/payment';
+import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
 import { sendMessage } from '../api/chatLogs';
 import { useChatStore } from '../store/chatStore';
 import { connectSocket, joinAuctionRoom } from '../socket/socket';
@@ -69,7 +70,7 @@ const TaskDetail: React.FC = () => {
   const dashboardTab = navState?.tab;
   const { tasks, setTasks, currentBids, setCurrentBid } = useTaskStore();
   const { user } = useAuthStore();
-  const { profileModalOpen, addTaskModalOpen, authModalOpen, setAuthModalOpen } = useUIStore();
+  const { profileModalOpen, addTaskModalOpen, authModalOpen, setAuthModalOpen, isDark } = useUIStore();
   const { chats, setChats, upsertChat, setActiveChat, setMessages } = useChatStore();
 
   const [loadingTask, setLoadingTask] = useState(true);
@@ -88,6 +89,14 @@ const TaskDetail: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
+
+  // Feature upgrade state
+  const stripe = useStripe();
+  const elements = useElements();
+  const [featureModalOpen, setFeatureModalOpen] = useState(false);
+  const [featureLoading, setFeatureLoading] = useState(false);
+  const [featureError, setFeatureError] = useState('');
+  const [featureStep, setFeatureStep] = useState<'confirm' | 'payment' | 'processing' | 'done'>('confirm');
 
   // Keyboard navigation for photo carousel
   useEffect(() => {
@@ -332,6 +341,64 @@ const TaskDetail: React.FC = () => {
     currentBid?.bidder_id != null && user != null && currentBid.bidder_id === user.user_id;
   const isOwner = task?.client_id === user?.user_id;
 
+  const FEATURED_FEE = 5;
+  const STRIPE_FEE_PERCENT = 0.034;
+  const STRIPE_FEE_FIXED = 0.50;
+  const featureTotal = Math.ceil((FEATURED_FEE * 100 + STRIPE_FEE_FIXED * 100) / (1 - STRIPE_FEE_PERCENT)) / 100;
+  const featureStripeFee = featureTotal - FEATURED_FEE;
+
+  const handleFeaturePay = async () => {
+    if (!task || !user) return;
+    if (!stripe || !elements) {
+      setFeatureError('Stripe is not loaded.');
+      return;
+    }
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      setFeatureError('Card element not found.');
+      return;
+    }
+    setFeatureError('');
+    setFeatureLoading(true);
+    try {
+      // Step 1: Get client secret from backend
+      const result = await captureFeaturedFee(task.task_id, user.user_id);
+      const clientSecret = result.client_secret;
+
+      // Step 2: Confirm card payment with Stripe
+      const { error: stripeErr, paymentIntent } = await stripe.confirmCardPayment(
+        clientSecret,
+        { payment_method: { card: cardElement } }
+      );
+      if (stripeErr) {
+        setFeatureError(stripeErr.message ?? 'Payment failed.');
+        return;
+      }
+      setFeatureStep('processing');
+      if (paymentIntent?.status !== 'succeeded') {
+        setFeatureError('Payment was not successful.');
+        setFeatureStep('payment');
+        return;
+      }
+      // Webhook will update is_featured; optimistically update local state
+      if (task) {
+        const updatedTask = { ...task, is_featured: true };
+        const updatedTasks = tasks.map(t => t.task_id === task.task_id ? updatedTask : t);
+        setTasks(updatedTasks);
+      }
+      setFeatureStep('done');
+      setTimeout(() => {
+        setFeatureModalOpen(false);
+        setFeatureStep('confirm');
+      }, 1500);
+    } catch (err) {
+      setFeatureError(err instanceof Error ? err.message : 'Payment failed.');
+      setFeatureStep('payment');
+    } finally {
+      setFeatureLoading(false);
+    }
+  };
+
   const handleMessageClient = async () => {
     if (requireAuth()) return;
     if (!task || !user) return;
@@ -441,29 +508,35 @@ const TaskDetail: React.FC = () => {
         return;
       }
 
-      // Release payment to freelancer
-      await releasePayment({
+      // Release payment to freelancer (commission deducted server-side)
+      const releaseResult = await releasePayment({
         payment_id: task.payment_id,
         freelancer_id: winnerId,
         amount: winningAmount,
         client_id: task.client_id,
       });
 
+      const payout = releaseResult.freelancer_payout ?? winningAmount;
+      const commission = releaseResult.commission_amount ?? 0;
+
       // Update task status to accepted
       await updateTask(task.task_id, { auction_status: 'accepted' });
       useTaskStore.getState().upsertTask({ ...task, auction_status: 'accepted' });
 
-      // Notify freelancer via chat
+      // Notify freelancer via chat with payout breakdown
       const chat = await ensureChat(user.user_id, winnerId);
+      const payoutMsg = commission > 0
+        ? `I've approved the work for "${task.title}". Payment breakdown: $${winningAmount.toFixed(2)} winning bid - $${commission.toFixed(2)} platform fee = $${payout.toFixed(2)} paid to you. Thank you for your work!`
+        : `I've approved the work for "${task.title}". Payment of $${winningAmount.toFixed(2)} has been released. Thank you for your work!`;
       await sendMessage({
         chat_id: chat.chat_id,
         sender_id: user.user_id,
         recipient_id: winnerId,
-        message: `I've approved the work for "${task.title}". Payment of $${winningAmount.toFixed(2)} has been released. Thank you for your work!`,
+        message: payoutMsg,
       });
 
       useUIStore.getState().addToast({
-        message: 'Work approved! Payment has been released to the freelancer.',
+        message: `Work approved! $${payout.toFixed(2)} released to freelancer ($${commission.toFixed(2)} platform fee).`,
         type: 'success',
       });
     } catch (err) {
@@ -941,6 +1014,55 @@ const TaskDetail: React.FC = () => {
               </button>
             )}
 
+            {/* Feature this listing button — owner only */}
+            {isOwner && !task.is_featured && task.auction_status === 'in-progress' && !auctionClosed && (
+              <button
+                onClick={() => { setFeatureModalOpen(true); setFeatureStep('confirm'); setFeatureError(''); }}
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #eab308, #f59e0b)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 8px rgba(234,179,8,0.3)',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                Feature this listing — $5.00
+              </button>
+            )}
+
+            {/* Featured badge for owner */}
+            {isOwner && task.is_featured && (
+              <div style={{
+                alignSelf: 'flex-start',
+                padding: '8px 14px',
+                background: 'linear-gradient(135deg, rgba(234,179,8,0.15), rgba(245,158,11,0.15))',
+                border: '1px solid rgba(234,179,8,0.3)',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#ca8a04',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="#ca8a04" stroke="none">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                Featured Listing
+              </div>
+            )}
+
           </div>
 
           {/* Right column — Bid Panel */}
@@ -1008,7 +1130,7 @@ const TaskDetail: React.FC = () => {
                         Work Approved
                       </div>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        Payment of <strong>${(currentBid?.bid_amount ?? task.starting_bid).toFixed(2)}</strong> has been released to the freelancer.
+                        Payment of <strong>${((currentBid?.bid_amount ?? task.starting_bid) * 0.9).toFixed(2)}</strong> has been released to the freelancer.
                       </div>
                     </div>
 
@@ -1033,8 +1155,36 @@ const TaskDetail: React.FC = () => {
                       </div>
 
                       {/* Client: Accept / Request Revisions / Reject buttons */}
-                      {isOwner && (
+                      {isOwner && (() => {
+                        const winAmt = currentBid?.bid_amount ?? task.starting_bid;
+                        const commissionRate = 0.10;
+                        const commissionAmt = winAmt * commissionRate;
+                        const freelancerPayout = winAmt - commissionAmt;
+                        return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {/* Payment breakdown */}
+                          <div style={{
+                            padding: '12px 14px',
+                            background: 'var(--bg-secondary)',
+                            borderRadius: 10,
+                            border: '1px solid var(--border)',
+                            fontSize: 13,
+                            color: 'var(--text-secondary)',
+                          }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Payment Breakdown</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <span>Winning bid</span>
+                              <span style={{ color: 'var(--text-primary)' }}>${winAmt.toFixed(2)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <span>Platform fee ({(commissionRate * 100).toFixed(0)}%)</span>
+                              <span style={{ color: '#ef4444' }}>-${commissionAmt.toFixed(2)}</span>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                              <span style={{ color: 'var(--text-primary)' }}>Freelancer receives</span>
+                              <span style={{ color: '#22c55e' }}>${freelancerPayout.toFixed(2)}</span>
+                            </div>
+                          </div>
                           <button
                             onClick={handleAcceptDelivery}
                             disabled={actionLoading}
@@ -1080,7 +1230,8 @@ const TaskDetail: React.FC = () => {
                             <span className="error-msg" style={{ textAlign: 'center' }}>{actionError}</span>
                           )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
                   ) : task.auction_status === 'disputed' ? (
@@ -1435,6 +1586,122 @@ const TaskDetail: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feature listing payment modal */}
+      {featureModalOpen && (
+        <div
+          onClick={() => { if (featureStep !== 'processing') { setFeatureModalOpen(false); setFeatureStep('confirm'); } }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 16, padding: 28, width: 420, maxWidth: '90vw',
+              boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            {(featureStep === 'confirm' || featureStep === 'payment') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Payment</h3>
+                  <button
+                    onClick={() => { if (!featureLoading) { setFeatureModalOpen(false); setFeatureStep('confirm'); } }}
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--text-secondary)',
+                      fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div style={{
+                  padding: 14, border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', background: 'var(--bg)',
+                }}>
+                  <CardElement options={{
+                    style: {
+                      base: {
+                        fontSize: '14px',
+                        color: isDark ? '#fafafa' : '#09090b',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                        '::placeholder': { color: isDark ? '#a1a1aa' : '#71717a' },
+                        iconColor: isDark ? '#a1a1aa' : '#71717a',
+                      },
+                      invalid: { color: '#ef4444' },
+                    },
+                  }} />
+                </div>
+
+                <div style={{
+                  padding: '12px 16px', background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--text-primary)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span>Featured listing fee</span>
+                    <span style={{ color: '#eab308', fontWeight: 600 }}>${FEATURED_FEE.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span>Processing fee (3.4% + $0.50)</span>
+                    <span style={{ fontWeight: 600 }}>${featureStripeFee.toFixed(2)}</span>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                    <span>Total charge</span>
+                    <span>${featureTotal.toFixed(2)}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    Processing fee is non-refundable.
+                  </div>
+                </div>
+
+                {featureError && <span className="error-msg">{featureError}</span>}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => { setFeatureModalOpen(false); setFeatureStep('confirm'); }}
+                    disabled={featureLoading}
+                    style={{ flex: 1 }}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={handleFeaturePay}
+                    disabled={featureLoading || !stripe}
+                    style={{
+                      flex: 2, opacity: featureLoading ? 0.7 : 1,
+                      background: 'linear-gradient(135deg, #eab308, #f59e0b)', color: '#fff',
+                    }}
+                  >
+                    {featureLoading ? 'Processing payment...' : 'Pay & Feature'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {featureStep === 'processing' && (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <span className="spinner" style={{ marginBottom: 12, display: 'inline-block' }} />
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Processing your payment...</div>
+              </div>
+            )}
+
+            {featureStep === 'done' && (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>&#11088;</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#eab308', marginBottom: 6 }}>Listing Featured!</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Your listing now has a gold badge and priority placement.</div>
+              </div>
+            )}
           </div>
         </div>
       )}

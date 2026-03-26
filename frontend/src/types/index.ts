@@ -21,8 +21,24 @@ export interface Task {
   auction_start_time: string;
   auction_end_time: string;
   auction_status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'no-bids' | 'pending-review' | 'accepted' | 'disputed';
+  is_featured: boolean;
   photos: string[] | null;
   thumbnail: string | null;
+}
+
+export interface Ad {
+  ad_id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  link_url: string;
+  advertiser_id: string;
+  category: TaskCategory | null;
+  is_active: boolean;
+  start_date: string;
+  end_date: string;
+  impressions: number;
+  clicks: number;
 }
 
 export interface Bid {

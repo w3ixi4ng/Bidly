@@ -26,6 +26,7 @@ interface FormData {
   auction_start_time: string;
   auction_end_time: string;
   starting_bid: string;
+  is_featured: boolean;
 }
 
 function formatForInput(date: Date): string {
@@ -63,6 +64,10 @@ const AddTaskModal: React.FC = () => {
   const now = new Date();
   const oneHourLater = new Date(now.getTime() + 3600000);
 
+  const FEATURED_FEE = 5; // $5 featured listing fee
+  const STRIPE_FEE_PERCENT = 0.034; // 3.4%
+  const STRIPE_FEE_FIXED = 0.50; // $0.50 SGD
+
   const [form, setForm] = useState<FormData>({
     title: '',
     description: '',
@@ -71,6 +76,7 @@ const AddTaskModal: React.FC = () => {
     auction_start_time: formatForInput(now),
     auction_end_time: formatForInput(oneHourLater),
     starting_bid: '',
+    is_featured: false,
   });
 
   // Cleanup timeout ref
@@ -99,7 +105,8 @@ const AddTaskModal: React.FC = () => {
     if (!form.auction_end_time) errors.auction_end_time = 'End time is required.';
     const start = form.startNow ? new Date() : new Date(form.auction_start_time);
     const end = new Date(form.auction_end_time);
-    if (end <= start) errors.auction_end_time = 'End time must be after start time.';
+    if (end <= new Date()) errors.auction_end_time = 'End time must be in the future.';
+    else if (end <= start) errors.auction_end_time = 'End time must be after start time.';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -238,6 +245,11 @@ const AddTaskModal: React.FC = () => {
         ? new Date().toISOString()
         : new Date(form.auction_start_time).toISOString();
       const endTime = new Date(form.auction_end_time).toISOString();
+      if (new Date(endTime) <= new Date()) {
+        setError('Auction end time has already passed. Please choose a future date.');
+        setSubmittingNext(false);
+        return;
+      }
       const result = await capturePayment({
         title: form.title.trim(),
         description: form.description.trim(),
@@ -246,6 +258,7 @@ const AddTaskModal: React.FC = () => {
         starting_bid: Number(form.starting_bid),
         auction_start_time: startTime,
         auction_end_time: endTime,
+        is_featured: form.is_featured,
       });
       setClientSecret(result.client_secret);
       setStep('payment');
@@ -264,6 +277,12 @@ const AddTaskModal: React.FC = () => {
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) {
       setError('Card element not found.');
+      return;
+    }
+
+    const endTime = new Date(form.auction_end_time);
+    if (endTime <= new Date()) {
+      setError('Auction end time has already passed. Please go back and choose a future date.');
       return;
     }
 
@@ -568,6 +587,41 @@ const AddTaskModal: React.FC = () => {
               )}
             </div>
 
+            {/* Featured listing toggle */}
+            <div className="form-group">
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 16px',
+                  borderRadius: 'var(--radius)',
+                  border: `1px solid ${form.is_featured ? 'rgba(234,179,8,0.4)' : 'var(--border)'}`,
+                  background: form.is_featured ? 'rgba(234,179,8,0.06)' : 'var(--bg)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.is_featured}
+                  onChange={(e) => updateField('is_featured', e.target.checked)}
+                  style={{ width: 18, height: 18, accentColor: '#eab308', cursor: 'pointer' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={form.is_featured ? '#eab308' : 'none'} stroke="#eab308" strokeWidth="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Featured Listing
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Pin your task to the top of the marketplace (+${FEATURED_FEE.toFixed(2)})
+                  </div>
+                </div>
+              </label>
+            </div>
+
             {/* Thumbnail (optional) */}
             <div className="form-group">
               <label className="form-label">Thumbnail (optional)</label>
@@ -727,7 +781,10 @@ const AddTaskModal: React.FC = () => {
               className="btn btn-primary"
               onClick={handleNext}
               disabled={submittingNext}
-              style={{ width: '100%', opacity: submittingNext ? 0.7 : 1 }}
+              style={{
+                width: '100%', opacity: submittingNext ? 0.7 : 1,
+                ...(form.is_featured ? { background: 'linear-gradient(135deg, #eab308, #f59e0b)' } : {}),
+              }}
             >
               {submittingNext ? 'Processing...' : 'Next →'}
             </button>
@@ -757,8 +814,38 @@ const AddTaskModal: React.FC = () => {
                 color: 'var(--text-secondary)',
               }}
             >
-              <strong style={{ color: 'var(--text-primary)' }}>Starting bid: </strong>
-              ${Number(form.starting_bid).toFixed(2)} will be held until the auction ends.
+              {(() => {
+                const bid = Number(form.starting_bid) || 0;
+                const featured = form.is_featured ? FEATURED_FEE : 0;
+                const subtotal = bid + featured;
+                const total = Math.ceil(((subtotal * 100) + (STRIPE_FEE_FIXED * 100)) / (1 - STRIPE_FEE_PERCENT)) / 100;
+                const stripeFee = total - subtotal;
+                return (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>Starting bid (held until auction ends)</span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>${bid.toFixed(2)}</span>
+                    </div>
+                    {form.is_featured && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span>Featured listing fee</span>
+                        <span style={{ color: '#eab308', fontWeight: 600 }}>${FEATURED_FEE.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>Processing fee (3.4% + $0.50)</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>${stripeFee.toFixed(2)}</span>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                      <span style={{ color: 'var(--text-primary)' }}>Total charge</span>
+                      <span style={{ color: 'var(--text-primary)' }}>${total.toFixed(2)}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>
+                      Processing fee is non-refundable.
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {error && <span className="error-msg">{error}</span>}
@@ -776,7 +863,10 @@ const AddTaskModal: React.FC = () => {
                 className="btn btn-primary"
                 onClick={handlePayAndCreate}
                 disabled={!stripe || submittingPay}
-                style={{ flex: 2, opacity: submittingPay ? 0.7 : 1 }}
+                style={{
+                  flex: 2, opacity: submittingPay ? 0.7 : 1,
+                  ...(form.is_featured ? { background: 'linear-gradient(135deg, #eab308, #f59e0b)' } : {}),
+                }}
               >
                 {submittingPay ? 'Processing payment...' : 'Pay & Create Task'}
               </button>

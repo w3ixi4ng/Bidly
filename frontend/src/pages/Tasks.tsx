@@ -12,11 +12,14 @@ import { getChatMessages } from '../api/chatLogs';
 import { connectSocket } from '../socket/socket';
 import Navbar from '../components/Navbar';
 import TaskCard from '../components/TaskCard';
+import AdCard from '../components/AdCard';
 import AddTaskButton from '../components/AddTaskButton';
 import AddTaskModal from '../components/AddTaskModal';
 import ProfileModal from '../components/ProfileModal';
 import ChatPanel from '../components/ChatPanel';
 import AuthModal from '../components/AuthModal';
+import { getActiveAds } from '../api/ads';
+import type { Ad } from '../types';
 
 const CATEGORIES = ['All', 'Design', 'Development', 'Writing', 'Marketing', 'Other'];
 
@@ -49,6 +52,7 @@ const Tasks: React.FC = () => {
   const [fetchError, setFetchError] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'newest' | 'ending-soon' | 'lowest-bid' | 'highest-bid'>('ending-soon');
+  const [ads, setAds] = useState<Ad[]>([]);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +96,7 @@ const Tasks: React.FC = () => {
       }
     };
     fetchTasks();
+    getActiveAds().then(setAds).catch(() => {});
     return () => { cancelled = true; };
   }, [setTasks]);
 
@@ -167,6 +172,9 @@ const Tasks: React.FC = () => {
   });
 
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Featured tasks always appear first
+    if (a.is_featured !== b.is_featured) return a.is_featured ? -1 : 1;
+
     // Pending tasks always appear after in-progress tasks
     const aIsPending = a.auction_status === 'pending';
     const bIsPending = b.auction_status === 'pending';
@@ -187,6 +195,11 @@ const Tasks: React.FC = () => {
     }
     return new Date(b.auction_start_time).getTime() - new Date(a.auction_start_time).getTime();
   });
+
+  // Filter ads by active category
+  const filteredAds = ads.filter(ad =>
+    activeCategory === 'All' || !ad.category || ad.category === activeCategory
+  );
 
   const liveCount = activeTasks.length;
   const withBids = activeTasks.filter(t => currentBids[t.task_id]?.bid_amount != null && currentBids[t.task_id]?.bidder_id != null).length;
@@ -417,11 +430,27 @@ const Tasks: React.FC = () => {
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: 20,
             }}>
-              {sortedTasks.map(task => (
-                <div key={task.task_id} className="task-card-item">
-                  <TaskCard task={task} currentBid={currentBids[task.task_id]} isPending={task.auction_status === 'pending'} />
-                </div>
-              ))}
+              {(() => {
+                const items: React.ReactNode[] = [];
+                let adIdx = 0;
+                sortedTasks.forEach((task, i) => {
+                  // Insert an ad card every 4th position
+                  if (i > 0 && i % 4 === 0 && adIdx < filteredAds.length) {
+                    const ad = filteredAds[adIdx++];
+                    items.push(
+                      <div key={`ad-${ad.ad_id}`} className="task-card-item">
+                        <AdCard ad={ad} />
+                      </div>
+                    );
+                  }
+                  items.push(
+                    <div key={task.task_id} className="task-card-item">
+                      <TaskCard task={task} currentBid={currentBids[task.task_id]} isPending={task.auction_status === 'pending'} />
+                    </div>
+                  );
+                });
+                return items;
+              })()}
             </div>
           </>
         )}
