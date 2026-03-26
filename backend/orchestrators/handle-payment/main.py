@@ -163,7 +163,7 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "payment_intent.succeeded":
         payment_intent = event["data"]["object"]
-        metadata = payment_intent.metadata
+        metadata = payment_intent.metadata or {}
 
         # Handle featured upgrade payments
         if metadata and "type" in metadata and metadata["type"] == "featured_upgrade":
