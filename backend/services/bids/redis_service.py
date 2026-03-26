@@ -43,6 +43,9 @@ class RedisService:
 
     def create_auction(self, task_id: str, auction_end_time: str, starting_bid: float):
         auction_key = f"auction:{task_id}"
+        # Only create if not already initialised — prevents retried messages from wiping active bids
+        if self.redis_client.exists(auction_key):
+            return
         self.redis_client.hset(auction_key, mapping={"auction_end_time": auction_end_time, "current_bid": starting_bid, "bidder_id": ""})
         ttl = int(float(auction_end_time) - time()) + 3600
         if ttl > 0:

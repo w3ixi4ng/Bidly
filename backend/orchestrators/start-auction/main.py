@@ -90,7 +90,7 @@ def start_auction(ch, method, properties, body):
     except Exception as e:
         print(f"Failed to process message: {e}")
         try:
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         except Exception as nack_err:
             print(f"Failed to nack message: {nack_err}")
 
