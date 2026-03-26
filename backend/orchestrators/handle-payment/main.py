@@ -163,11 +163,11 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "payment_intent.succeeded":
         payment_intent = event["data"]["object"]
-        metadata = payment_intent.metadata or {}
+        metadata = payment_intent.metadata
 
         # Handle featured upgrade payments
-        if metadata.get("type") == "featured_upgrade":
-            task_id = metadata.get("task_id")
+        if metadata and "type" in metadata and metadata["type"] == "featured_upgrade":
+            task_id = metadata["task_id"] if metadata and "task_id" in metadata else None
             if task_id:
                 try:
                     async with httpx.AsyncClient() as client:
@@ -182,7 +182,7 @@ async def stripe_webhook(request: Request):
             return {"status": "success", "type": "featured_upgrade"}
 
         # Only process if this PaymentIntent has our task metadata
-        if not metadata.get("client_id") or not metadata.get("title"):
+        if not (metadata and "client_id" in metadata) or not (metadata and "title" in metadata):
             return {"status": "ignored", "reason": "not a task payment"}
 
         # Log payment to OutSystems and get the payment_id UUID
@@ -208,16 +208,16 @@ async def stripe_webhook(request: Request):
             async with httpx.AsyncClient() as client:
                 res = await client.post(f"{CREATE_TASK_URL}/create-task", json={
                     "title": metadata["title"],
-                    "description": metadata.get("description", ""),
+                    "description": metadata["description"] if "description" in metadata else "",
                     "requirements": [],
-                    "category": metadata.get("category", "Other"),
+                    "category": metadata["category"] if "category" in metadata else "Other",
                     "client_id": metadata["client_id"],
                     "payment_id": payment_id,
                     "payment_intent_id": payment_intent["id"],
-                    "starting_bid": float(metadata.get("starting_bid", 0)),
-                    "auction_start_time": metadata.get("auction_start_time"),
-                    "auction_end_time": metadata.get("auction_end_time"),
-                    "is_featured": metadata.get("is_featured", "False") == "True",
+                    "starting_bid": float(metadata["starting_bid"]) if "starting_bid" in metadata else 0,
+                    "auction_start_time": metadata["auction_start_time"] if "auction_start_time" in metadata else None,
+                    "auction_end_time": metadata["auction_end_time"] if "auction_end_time" in metadata else None,
+                    "is_featured": metadata["is_featured"] == "True" if "is_featured" in metadata else False,
                 })
 
                 if res.status_code in (200, 201):

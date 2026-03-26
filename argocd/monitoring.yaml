@@ -48,7 +48,7 @@ spec:
                 datasource: prometheus
               kong-official:
                 gnetId: 7424
-                revision: 6
+                revision: 11
                 datasource: prometheus
   destination:
     server: https://kubernetes.default.svc
