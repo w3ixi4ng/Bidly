@@ -99,9 +99,7 @@ async def release_payment(payment_data: ReleasePaymentData):
 
         return {
             "status": "released",
-            "commission_amount": release_data.get("commission_amount"),
             "freelancer_payout": release_data.get("freelancer_payout"),
-            "commission_rate": release_data.get("commission_rate"),
         }
 
     except HTTPException:

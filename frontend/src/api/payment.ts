@@ -66,9 +66,7 @@ export interface ReleasePaymentPayload {
 
 export interface ReleasePaymentResponse {
   status: string;
-  commission_amount?: number;
   freelancer_payout?: number;
-  commission_rate?: number;
 }
 
 export async function releasePayment(
