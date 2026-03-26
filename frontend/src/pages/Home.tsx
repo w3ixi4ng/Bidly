@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useTaskStore } from '../store/taskStore';
 import { useChatStore } from '../store/chatStore';
 import { useUIStore } from '../store/uiStore';
-import { login, signup, getUser } from '../api/users';
+import { login, signup, getUser, getUsers } from '../api/users';
 import { getTasks } from '../api/tasks';
 import { getCurrentBidWithFallback } from '../api/bids';
 import { getUserChats } from '../api/chats';
@@ -85,10 +85,10 @@ const FEATURES = [
 ];
 
 const STATS_FALLBACK = [
-  { value: '—', label: 'Tasks Posted' },
+  { value: '—', label: 'Users' },
   { value: '—', label: 'Completed' },
   { value: '—', label: 'Live Now' },
-  { value: '$0', label: 'Platform Fee' },
+  { value: '—', label: 'Avg Savings' },
 ];
 
 const Home: React.FC = () => {
@@ -124,21 +124,47 @@ const Home: React.FC = () => {
 
   // Fetch live stats and live bids from API
   useEffect(() => {
+    // Fetch users count in parallel with tasks
+    getUsers().then(users => {
+      setLiveStats(prev => prev.map(s => s.label === 'Users' ? { ...s, value: String(users.length) } : s));
+    }).catch(() => {});
+
     getTasks()
       .then(async tasks => {
-        const total = tasks.length;
-        const completed = tasks.filter(t =>
+        const completedTasks = tasks.filter(t =>
           t.auction_status === 'completed' || t.auction_status === 'accepted' || t.auction_status === 'pending-review'
-        ).length;
+        );
         const liveTasks = tasks.filter(t =>
           t.auction_status === 'in-progress' && new Date(t.auction_end_time).getTime() > Date.now()
         );
-        setLiveStats([
-          { value: String(total), label: 'Tasks Posted' },
-          { value: String(completed), label: 'Completed' },
-          { value: String(liveTasks.length), label: 'Live Now' },
-          { value: '$0', label: 'Platform Fee' },
-        ]);
+
+        // Calculate avg savings from completed tasks that have bids
+        let avgSavings = '—';
+        try {
+          const savingsResults = await Promise.all(
+            completedTasks.map(async t => {
+              try {
+                const currentBid = await getCurrentBidWithFallback(t.task_id);
+                if (currentBid.bid_amount != null && currentBid.bid_amount < t.starting_bid) {
+                  return (t.starting_bid - currentBid.bid_amount) / t.starting_bid;
+                }
+              } catch { /* skip */ }
+              return null;
+            })
+          );
+          const validSavings = savingsResults.filter((s): s is number => s !== null);
+          if (validSavings.length > 0) {
+            const avg = validSavings.reduce((a, b) => a + b, 0) / validSavings.length;
+            avgSavings = `${Math.round(avg * 100)}%`;
+          }
+        } catch { /* skip */ }
+
+        setLiveStats(prev => prev.map(s => {
+          if (s.label === 'Completed') return { ...s, value: String(completedTasks.length) };
+          if (s.label === 'Live Now') return { ...s, value: String(liveTasks.length) };
+          if (s.label === 'Avg Savings') return { ...s, value: avgSavings };
+          return s;
+        }));
 
         // Fetch current bids for live tasks to populate the ticker
         const bidResults = await Promise.all(
@@ -740,7 +766,7 @@ const Home: React.FC = () => {
                 {[
                   { icon: '🔒', text: 'Stripe secured' },
                   { icon: '⚡', text: 'Instant setup' },
-                  { icon: '✓', text: 'Free forever' },
+                  { icon: '✓', text: 'No subscription' },
                 ].map(b => (
                   <div key={b.text} style={{
                     display: 'flex', alignItems: 'center', gap: 4,
@@ -966,9 +992,9 @@ const Home: React.FC = () => {
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>Bidly</span>
           <span>·</span>
-          <span>Work gets done. Bids go down.</span>
+          <span>Where Supply Meets Demand</span>
         </div>
-        <div>© 2025 Bidly. All rights reserved.</div>
+        <div>© 2026 Bidly. All rights reserved.</div>
       </footer>
 
       <style>{`

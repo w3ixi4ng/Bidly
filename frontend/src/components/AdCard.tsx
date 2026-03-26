@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import type { Ad } from '../types';
-import { trackAdImpression, trackAdClick } from '../api/ads';
 
 interface AdCardProps {
   ad: Ad;
@@ -8,17 +7,8 @@ interface AdCardProps {
 
 const AdCard: React.FC<AdCardProps> = ({ ad }) => {
   const [hovered, setHovered] = useState(false);
-  const impressionTracked = useRef(false);
-
-  useEffect(() => {
-    if (!impressionTracked.current) {
-      impressionTracked.current = true;
-      trackAdImpression(ad.ad_id).catch(() => {});
-    }
-  }, [ad.ad_id]);
 
   const handleClick = () => {
-    trackAdClick(ad.ad_id).catch(() => {});
     window.open(ad.link_url, '_blank', 'noopener,noreferrer');
   };
 

@@ -65,6 +65,7 @@ const AddTaskModal: React.FC = () => {
   const oneHourLater = new Date(now.getTime() + 3600000);
 
   const FEATURED_FEE = 5; // $5 featured listing fee
+  const COMMISSION_RATE = 0.10; // 10% platform commission
   const STRIPE_FEE_PERCENT = 0.034; // 3.4%
   const STRIPE_FEE_FIXED = 0.50; // $0.50 SGD
 
@@ -816,8 +817,9 @@ const AddTaskModal: React.FC = () => {
             >
               {(() => {
                 const bid = Number(form.starting_bid) || 0;
+                const commission = bid * COMMISSION_RATE;
                 const featured = form.is_featured ? FEATURED_FEE : 0;
-                const subtotal = bid + featured;
+                const subtotal = bid + commission + featured;
                 const total = Math.ceil(((subtotal * 100) + (STRIPE_FEE_FIXED * 100)) / (1 - STRIPE_FEE_PERCENT)) / 100;
                 const stripeFee = total - subtotal;
                 return (
@@ -825,6 +827,10 @@ const AddTaskModal: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span>Starting bid (held until auction ends)</span>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>${bid.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>Platform fee (10%)</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>${commission.toFixed(2)}</span>
                     </div>
                     {form.is_featured && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -891,7 +897,7 @@ const AddTaskModal: React.FC = () => {
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>✓</div>
             <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-              Your task has been created and is now live!
+              Your task has been created and your auction will start soon!
             </p>
           </div>
         )}

@@ -34,6 +34,11 @@ export async function getUser(user_id: string): Promise<User> {
   return data;
 }
 
+export async function getUsers(): Promise<User[]> {
+  const { data } = await apiClient.get<User[]>('/users');
+  return data;
+}
+
 export async function updateUser(
   user_id: string,
   payload: { name?: string; stripe_connected_account_id?: string; profile_picture_url?: string }

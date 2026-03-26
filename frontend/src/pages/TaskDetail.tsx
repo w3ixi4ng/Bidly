@@ -508,35 +508,29 @@ const TaskDetail: React.FC = () => {
         return;
       }
 
-      // Release payment to freelancer (commission deducted server-side)
-      const releaseResult = await releasePayment({
+      // Release full payment to freelancer
+      await releasePayment({
         payment_id: task.payment_id,
         freelancer_id: winnerId,
         amount: winningAmount,
         client_id: task.client_id,
       });
 
-      const payout = releaseResult.freelancer_payout ?? winningAmount;
-      const commission = releaseResult.commission_amount ?? 0;
-
       // Update task status to accepted
       await updateTask(task.task_id, { auction_status: 'accepted' });
       useTaskStore.getState().upsertTask({ ...task, auction_status: 'accepted' });
 
-      // Notify freelancer via chat with payout breakdown
+      // Notify freelancer via chat
       const chat = await ensureChat(user.user_id, winnerId);
-      const payoutMsg = commission > 0
-        ? `I've approved the work for "${task.title}". Payment breakdown: $${winningAmount.toFixed(2)} winning bid - $${commission.toFixed(2)} platform fee = $${payout.toFixed(2)} paid to you. Thank you for your work!`
-        : `I've approved the work for "${task.title}". Payment of $${winningAmount.toFixed(2)} has been released. Thank you for your work!`;
       await sendMessage({
         chat_id: chat.chat_id,
         sender_id: user.user_id,
         recipient_id: winnerId,
-        message: payoutMsg,
+        message: `I've approved the work for "${task.title}". Payment of $${winningAmount.toFixed(2)} has been released. Thank you for your work!`,
       });
 
       useUIStore.getState().addToast({
-        message: `Work approved! $${payout.toFixed(2)} released to freelancer ($${commission.toFixed(2)} platform fee).`,
+        message: `Work approved! $${winningAmount.toFixed(2)} released to freelancer.`,
         type: 'success',
       });
     } catch (err) {
@@ -1130,7 +1124,7 @@ const TaskDetail: React.FC = () => {
                         Work Approved
                       </div>
                       <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        Payment of <strong>${((currentBid?.bid_amount ?? task.starting_bid) * 0.9).toFixed(2)}</strong> has been released to the freelancer.
+                        Payment of <strong>${(currentBid?.bid_amount ?? task.starting_bid).toFixed(2)}</strong> has been released to the freelancer.
                       </div>
                     </div>
 
@@ -1157,12 +1151,9 @@ const TaskDetail: React.FC = () => {
                       {/* Client: Accept / Request Revisions / Reject buttons */}
                       {isOwner && (() => {
                         const winAmt = currentBid?.bid_amount ?? task.starting_bid;
-                        const commissionRate = 0.10;
-                        const commissionAmt = winAmt * commissionRate;
-                        const freelancerPayout = winAmt - commissionAmt;
                         return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {/* Payment breakdown */}
+                          {/* Payment summary */}
                           <div style={{
                             padding: '12px 14px',
                             background: 'var(--bg-secondary)',
@@ -1171,18 +1162,9 @@ const TaskDetail: React.FC = () => {
                             fontSize: 13,
                             color: 'var(--text-secondary)',
                           }}>
-                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Payment Breakdown</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                              <span>Winning bid</span>
-                              <span style={{ color: 'var(--text-primary)' }}>${winAmt.toFixed(2)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                              <span>Platform fee ({(commissionRate * 100).toFixed(0)}%)</span>
-                              <span style={{ color: '#ef4444' }}>-${commissionAmt.toFixed(2)}</span>
-                            </div>
-                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                               <span style={{ color: 'var(--text-primary)' }}>Freelancer receives</span>
-                              <span style={{ color: '#22c55e' }}>${freelancerPayout.toFixed(2)}</span>
+                              <span style={{ color: '#22c55e' }}>${winAmt.toFixed(2)}</span>
                             </div>
                           </div>
                           <button
