@@ -117,7 +117,7 @@ def capture_payment_intent(payment_data: CapturePayment):
         }
     )
 
-    return payment_intent
+    return {"client_secret": payment_intent.client_secret}
 
 
 @app.post("/payment/capture-featured-fee")
@@ -140,7 +140,7 @@ def capture_featured_fee(data: CaptureFeaturedFee):
         }
     )
 
-    return payment_intent
+    return {"client_secret": payment_intent.client_secret}
 
 
 # this release and refund at same time
