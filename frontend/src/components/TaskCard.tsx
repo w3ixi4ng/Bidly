@@ -62,12 +62,14 @@ function formatStartCountdown(startTime: string): string {
   if (diff <= 0) return 'Starting...';
   const totalHours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     return `Starts in ${days}d ${totalHours % 24}h`;
   }
   if (totalHours > 0) return `Starts in ${totalHours}h ${mins}m`;
-  return `Starts in ${mins}m`;
+  if (mins > 0) return `Starts in ${mins}m ${secs}s`;
+  return `Starts in ${secs}s`;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false }) => {
@@ -77,8 +79,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
 
   useEffect(() => {
     if (!task) return;
-    const remaining = new Date(task.auction_end_time).getTime() - Date.now();
-    if (remaining <= 0) return;
+    const endRemaining = new Date(task.auction_end_time).getTime() - Date.now();
+    const startRemaining = new Date(task.auction_start_time).getTime() - Date.now();
+    if (endRemaining <= 0 && startRemaining <= 0) return;
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [task]);
@@ -111,7 +114,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
       onMouseLeave={() => setHovered(false)}
       style={{
         background: 'var(--surface)',
-        border: `1px solid ${hovered ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+        border: task.is_featured
+          ? `2px solid ${hovered ? 'rgba(234,179,8,0.6)' : 'rgba(234,179,8,0.35)'}`
+          : `1px solid ${hovered ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
         borderRadius: 20,
         padding: '22px 22px 18px',
         cursor: isPending ? 'default' : 'pointer',
@@ -122,9 +127,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
         position: 'relative',
         overflow: 'hidden',
         opacity: isPending ? 0.5 : 1,
-        boxShadow: hovered
-          ? '0 12px 40px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)'
-          : '0 2px 8px rgba(0,0,0,0.05)',
+        boxShadow: task.is_featured
+          ? (hovered ? '0 12px 40px rgba(234,179,8,0.18), 0 2px 8px rgba(0,0,0,0.08)' : '0 2px 12px rgba(234,179,8,0.1), 0 2px 8px rgba(0,0,0,0.05)')
+          : (hovered ? '0 12px 40px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.05)'),
         transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
         transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, opacity 0.3s ease',
       }}
@@ -153,9 +158,37 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, currentBid, isPending = false
           position: 'absolute',
           top: 0, left: 0, right: 0,
           height: 2,
-          background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+          background: task.is_featured
+            ? 'linear-gradient(90deg, #eab308, #f59e0b)'
+            : 'linear-gradient(90deg, #6366f1, #a855f7)',
           borderRadius: '20px 20px 0 0',
         }} />
+      )}
+
+      {/* Featured badge */}
+      {task.is_featured && (
+        <div style={{
+          position: 'absolute',
+          top: 14, left: 14,
+          padding: '4px 10px',
+          background: 'linear-gradient(135deg, rgba(234,179,8,0.9), rgba(245,158,11,0.9))',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 8,
+          fontSize: 10,
+          fontWeight: 800,
+          color: '#fff',
+          letterSpacing: '0.8px',
+          textTransform: 'uppercase' as const,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          boxShadow: '0 2px 8px rgba(234,179,8,0.3)',
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="#fff" stroke="none">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          Featured
+        </div>
       )}
 
       {/* Pending badge */}

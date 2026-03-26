@@ -1,11 +1,15 @@
 import aio_pika
 import httpx
 import json
+import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException
 from schema import CreateTaskRequest
 import uvicorn
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TASKS_URL = "http://tasks:8005"
 PAYMENT_URL = "http://payment:8011"
@@ -70,6 +74,7 @@ async def create_task(body: CreateTaskRequest):
             "auction_start_time": body.auction_start_time.isoformat(),
             "auction_end_time": body.auction_end_time.isoformat(),
             "auction_status": "pending",
+            "is_featured": body.is_featured,
         })
 
         if task_res.status_code != 201:
@@ -95,7 +100,7 @@ async def create_task(body: CreateTaskRequest):
                 aio_pika.Message(
                     body=auction_payload,
                     delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                    expiration=str(delay_ms),
+                    expiration=timedelta(milliseconds=delay_ms),
                 ),
                 routing_key="auction_pending",
             )
@@ -114,6 +119,7 @@ async def create_task(body: CreateTaskRequest):
             routing_key="task.created.websocket",
         )
     except Exception as e:
+        logger.exception("Auction scheduling failed")
         # Compensate: delete the orphaned task since auction scheduling failed
         async with httpx.AsyncClient() as client:
             await client.delete(f"{TASKS_URL}/tasks/{task['task_id']}")

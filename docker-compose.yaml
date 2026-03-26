@@ -21,6 +21,17 @@ services:
     env_file:
       - .env.supabase
 
+  ads:
+    image: bidly/ads:latest
+    build: ./backend/services/ads
+    container_name: ads
+    ports:
+      - "8060:8060"
+    networks:
+      - bidly-net
+    env_file:
+      - .env.supabase
+
   chats:
     image: bidly/chats:latest
     build: ./backend/services/chats
@@ -290,3 +301,4 @@ services:
       - users
       - connect-chat
       - upload-photo
+      - ads

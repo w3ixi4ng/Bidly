@@ -17,3 +17,21 @@ def get_winner(task_id: str):
     if response.status_code != 200:
         response.raise_for_status()
     return response
+
+
+def get_task(task_id: str):
+    response = requests.get(f"http://tasks:8005/tasks/{task_id}")
+    if response.status_code != 200:
+        response.raise_for_status()
+    return response
+
+
+def refund_payment(payment_id: str):
+    """Refund the starting bid to the client (Stripe/featured fees are non-refundable)."""
+    response = requests.post(
+        "http://handle-payment:8012/handle-payment/refund",
+        json={"payment_id": payment_id},
+    )
+    if response.status_code != 200:
+        response.raise_for_status()
+    return response

@@ -13,6 +13,7 @@ class StartPaymentData(BaseModel):
     starting_bid: float
     auction_start_time: AwareDatetime
     auction_end_time: AwareDatetime
+    is_featured: bool = False
 
 class ReleasePaymentData(BaseModel):
     payment_id: str
@@ -22,3 +23,7 @@ class ReleasePaymentData(BaseModel):
 
 class RefundPaymentData(BaseModel):
     payment_id: str
+
+class FeatureTaskData(BaseModel):
+    task_id: str
+    client_id: str
