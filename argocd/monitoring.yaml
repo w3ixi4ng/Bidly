@@ -16,12 +16,40 @@ spec:
           sidecar:
             datasources:
               defaultDatasourceEnabled: false
+            dashboards:
+              enabled: true
           additionalDataSources:
             - name: prometheus
               type: prometheus
               url: http://monitoring-kube-prometheus-prometheus.monitoring:9090/
               access: proxy
               isDefault: true
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: default
+                  orgId: 1
+                  folder: Bidly
+                  type: file
+                  disableDeletion: true
+                  editable: false
+                  options:
+                    path: /var/lib/grafana/dashboards/default
+          dashboards:
+            default:
+              kubernetes-cluster-overview:
+                gnetId: 7249
+                revision: 1
+                datasource: prometheus
+              node-exporter-full:
+                gnetId: 1860
+                revision: 37
+                datasource: prometheus
+              kong-official:
+                gnetId: 7424
+                revision: 6
+                datasource: prometheus
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
