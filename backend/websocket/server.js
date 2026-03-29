@@ -14,7 +14,18 @@ const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
 
+app.use(express.json());
 app.get('/', (req, res) => res.json({ status: 'ok' }));
+
+app.post('/broadcast/task-updated', (req, res) => {
+  const task = req.body;
+  if (!task || !task.task_id) {
+    return res.status(400).json({ error: 'task_id is required' });
+  }
+  io.emit('task_updated', task);
+  console.log(`[task_updated] broadcasted globally for task_id ${task.task_id}`);
+  res.json({ status: 'ok' });
+});
 
 // ---------------------------------------------------------------------------
 // Presence tracking: socketId -> userId
