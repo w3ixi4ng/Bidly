@@ -157,7 +157,7 @@ def release_payment(data: ReleasePayment):
         raise HTTPException(status_code=400, detail="Payment not successful")
 
     currency = payment_intent["currency"]
-    metadata = payment_intent.metadata or {}
+    metadata = dict(payment_intent.metadata) if payment_intent.metadata else {}
     starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
     commission_charged = int(float(metadata.get("commission", 0)))  # 10% of starting bid
     winning_bid_cents = int(data.amount * 100)  # Convert to cents
