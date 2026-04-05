@@ -5,6 +5,7 @@ import uvicorn
 PHOTOS_URL = "http://photos:8050"
 USERS_URL = "http://users:8004"
 TASKS_URL = "http://tasks:8005"
+WEBSOCKET_URL = "http://websocket:8007"
 
 app = FastAPI()
 
@@ -139,6 +140,11 @@ async def upload_task_thumbnail(
         if update_res.status_code != 200:
             detail = update_res.json().get("detail", "Failed to update task")
             raise HTTPException(status_code=update_res.status_code, detail=detail)
+
+        # Step 3: Broadcast updated task to all connected clients
+        task_res = await client.get(f"{TASKS_URL}/tasks/{task_id}")
+        if task_res.status_code == 200:
+            await client.post(f"{WEBSOCKET_URL}/broadcast/task-updated", json=task_res.json())
 
     return {"url": url}
 

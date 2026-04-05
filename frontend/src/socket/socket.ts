@@ -65,23 +65,28 @@ export function connectSocket(userId: string): void {
     }) => {
       const chatStore = useChatStore.getState();
 
-      // If this chat isn't in the store yet, fetch and add it
+      const addAndNotify = () => {
+        useChatStore.getState().addMessage(data.chat_id, {
+          sender_id: data.sender_id,
+          message: data.message,
+          timestamp: null,
+        });
+        if (useChatStore.getState().activeChatId !== data.chat_id) {
+          useChatStore.getState().incrementUnread(data.chat_id);
+        }
+      };
+
+      // If this chat isn't in the store yet, fetch it first then add the message
       const chatExists = chatStore.chats.some(c => c.chat_id === data.chat_id);
       if (!chatExists) {
         import('../api/chats').then(({ getChatDetail }) => {
           getChatDetail(data.chat_id).then(chat => {
-            chatStore.upsertChat(chat);
+            useChatStore.getState().upsertChat(chat);
+            addAndNotify();
           }).catch(() => {});
         });
-      }
-
-      chatStore.addMessage(data.chat_id, {
-        sender_id: data.sender_id,
-        message: data.message,
-        timestamp: null,
-      });
-      if (chatStore.activeChatId !== data.chat_id) {
-        chatStore.incrementUnread(data.chat_id);
+      } else {
+        addAndNotify();
       }
     }
   );
@@ -102,6 +107,10 @@ export function connectSocket(userId: string): void {
 
   socket.on('auction_ended', (data: { task_id: string }) => {
     useTaskStore.getState().markAuctionEnded(data.task_id);
+  });
+
+  socket.on('task_updated', (task: Task) => {
+    useTaskStore.getState().upsertTask(task);
   });
 
   socket.on('user_online', (data: { user_id: string }) => {
