@@ -212,9 +212,9 @@ def refund_payment(data: RefundPayment):
     # Refund starting bid + commission back to client
     # Stripe processing fee and featured fee are non-refundable
     payment_intent = stripe.PaymentIntent.retrieve(data.payment_intent_id)
-    metadata = payment_intent.metadata or {}
-    starting_bid_cents = int(float(metadata.get("starting_bid", 0)) * 100)
-    commission_cents = int(float(metadata.get("commission", 0)))
+    metadata = payment_intent.metadata
+    starting_bid_cents = int(float(getattr(metadata, "starting_bid", 0) or 0) * 100)
+    commission_cents = int(float(getattr(metadata, "commission", 0) or 0))
 
     refund_amount = starting_bid_cents + commission_cents
 
@@ -232,7 +232,7 @@ def list_recent_payments(limit: int = 10):
     intents = stripe.PaymentIntent.list(limit=limit)
     results = []
     for pi in intents["data"]:
-        meta = pi.metadata or {}
+        meta = pi.metadata
         results.append({
             "id": pi["id"],
             "amount": pi["amount"] / 100,
@@ -240,12 +240,12 @@ def list_recent_payments(limit: int = 10):
             "status": pi["status"],
             "created": pi["created"],
             "metadata": {
-                "title": meta.get("title"),
-                "client_id": meta.get("client_id"),
-                "starting_bid": meta.get("starting_bid"),
-                "is_featured": meta.get("is_featured"),
-                "featured_fee": meta.get("featured_fee"),
-                "stripe_fee": meta.get("stripe_fee"),
+                "title": getattr(meta, "title", None),
+                "client_id": getattr(meta, "client_id", None),
+                "starting_bid": getattr(meta, "starting_bid", None),
+                "is_featured": getattr(meta, "is_featured", None),
+                "featured_fee": getattr(meta, "featured_fee", None),
+                "stripe_fee": getattr(meta, "stripe_fee", None),
             },
         })
     return {"payments": results}
