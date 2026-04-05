@@ -17,9 +17,46 @@
 
 > Ensure Docker Desktop is running
 
+### Environment Variables
+
+**Backend** — place these files at the **project root** (same level as `docker-compose.yaml`):
+
+`.env.supabase`
+```
+SUPABASE_URL=<your_supabase_url>
+SUPABASE_KEY=<your_supabase_anon_key>
+SUPABASE_SERVICE_KEY=<your_supabase_service_role_key>
+```
+
+`.env.firebase`
+```
+FIREBASE_SERVICE_ACCOUNT=<your_firebase_service_account_json_as_single_line_string>
+```
+
+`.env.stripe`
+```
+STRIPE_API_KEY=<your_stripe_secret_key>
+STRIPE_WEBHOOK_SECRET=<your_stripe_webhook_secret>
+```
+
+`.env.twilio`
+```
+SENDGRID_API_KEY=<your_sendgrid_api_key>
+```
+
+**Frontend** — place this file inside the `frontend/` directory:
+
+`frontend/.env`
+```
+VITE_API_BASE_URL=http://localhost:8000
+VITE_WS_URL=http://localhost:8000
+VITE_STRIPE_PUBLISHABLE_KEY=<your_stripe_publishable_key>
+```
+
+---
+
 1. Start all backend services:
 ```bash
-cd backend
 docker-compose up -d --build
 ```
 
