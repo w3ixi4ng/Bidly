@@ -69,6 +69,17 @@ npm run dev
 
 ---
 
+## Domains
+
+| Domain | Purpose |
+|--------|---------|
+| `bidly-esd.vercel.app` | Frontend (Vercel) |
+| `bidly-backend.com` | Kong API Gateway — all backend traffic (GKE) |
+| `argocd.bidly-backend.com` | Argo CD GitOps dashboard |
+| `grafana.bidly-backend.com` | Grafana observability dashboard |
+
+---
+
 ## System Architecture Diagram
 
 ![System Architecture](assets/system_architecture.png)
