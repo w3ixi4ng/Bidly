@@ -268,11 +268,11 @@ npm run dev
 <div align="center">
     <table>
         <tr>
-            <th>Weixiang</th>
-            <th>Jeryl Khoo</th>
-            <th>Matthew Chan</th>
-            <th>Joshua Lim</th>
-            <th>Delroy Singh</th>
+            <th>Wei Xiang</th>
+            <th>Jeryl</th>
+            <th>Matthew</th>
+            <th>Joshua</th>
+            <th>Delroy</th>
             <th>Akash</th>
         </tr>
     </table>
