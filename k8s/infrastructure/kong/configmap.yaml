@@ -114,6 +114,14 @@ data:
           bandwidth_metrics: true
           upstream_health_metrics: true
 
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+          limit_by: ip
+          error_code: 429
+          error_message: "Rate limit exceeded"
+
       - name: cors
         config:
           origins:
