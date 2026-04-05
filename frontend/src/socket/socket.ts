@@ -79,12 +79,24 @@ export function connectSocket(userId: string): void {
       // If this chat isn't in the store yet, fetch it first then add the message
       const chatExists = chatStore.chats.some(c => c.chat_id === data.chat_id);
       if (!chatExists) {
-        import('../api/chats').then(({ getChatDetail }) => {
-          getChatDetail(data.chat_id).then(chat => {
-            useChatStore.getState().upsertChat(chat);
-            addAndNotify();
-          }).catch(() => {});
-        });
+        const tryFetchChat = (attemptsLeft: number) => {
+          import('../api/chats').then(({ getChatDetail }) => {
+            getChatDetail(data.chat_id)
+              .then(chat => {
+                useChatStore.getState().upsertChat(chat);
+                addAndNotify();
+              })
+              .catch(() => {
+                if (attemptsLeft > 0) {
+                  setTimeout(() => tryFetchChat(attemptsLeft - 1), 1500);
+                } else {
+                  // Chat fetch failed after retries — still deliver the message
+                  addAndNotify();
+                }
+              });
+          });
+        };
+        tryFetchChat(3);
       } else {
         addAndNotify();
       }
